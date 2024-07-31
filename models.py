@@ -104,4 +104,4 @@ def load_model(model_name="Net_CIFAR10"):
         return Net_CIFAR10().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "ResNet18":
         return ResNet18().to(DEVICE)
-    raise ValueError(f"Unknown model name: {model_name}")
+    

@@ -32,11 +32,10 @@ def plot_accuracies(iid_accuracies, noniid_accuracies, filename):
     plt.legend()
     plt.savefig(filename)
 
-
 if __name__ == "__main__":
-    num_clients = 1
-    epochs_per_round = 1
-    num_rounds = 2
+    num_clients = 1#客户端数量
+    epochs_per_round = 1#每个客户端训练的轮数
+    num_rounds = 2#训练轮数
     mu = 0.01#FedProx正则化项的系数
     lr = 0.001#优化器的学习率
     net_CIFAR10 = load_model("Net_CIFAR10")  # 定义模型
