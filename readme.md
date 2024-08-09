@@ -4,6 +4,8 @@
 
 对应MNIST的模型是Net_MNIST，对应CIFAR10数据集的模型是Net_CIFAR10，也可以使用ResNet18
 
+数据集有恶意的CIFAR10, MNIST两种数据集，在左上角的位置添加像素点
+
 strategy有fedavg, fedprox, Local SGD (又称 scaffold),
 
 baseline为主函数，相关配置：
