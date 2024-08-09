@@ -1,9 +1,8 @@
-
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-if torch.backends.mps.is_available() :
-    DEVICE = torch.device("mps")#mac调用gpu训练
+from config import *
+
 class Net_CIFAR10(nn.Module):#定义网络模型架构
     def __init__(self):#适用CIFAR10图像分类任务的典型CNN，两个卷积层和三个全连接层
         super(Net_CIFAR10, self).__init__()
@@ -21,6 +20,33 @@ class Net_CIFAR10(nn.Module):#定义网络模型架构
         x = F.relu(self.fc1(x))#然后通过全连接层self.fc1，再通过ReLU激活函数。
         x = F.relu(self.fc2(x))#再次通过全连接层self.fc2，再通过ReLU激活函数。
         return self.fc3(x)#最后通过全连接层self.fc3
+
+class Net_enhanced_CIFAR10(nn.Module):
+    def __init__(self):
+        super(Net_enhanced_CIFAR10, self).__init__()
+        # Define the layers of the network
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((8, 8))  # Use adaptive pooling here
+        self.fc1 = nn.Linear(512 * 8 * 8, 1024)
+        self.fc2 = nn.Linear(1024, 512)
+        self.fc3 = nn.Linear(512, 10)
+
+    def forward(self, x):
+        # Define the forward pass
+        x = self.pool(F.relu(self.conv1(x)))  # 128x128 -> 64x64
+        x = self.pool(F.relu(self.conv2(x)))  # 64x64 -> 32x32
+        x = self.pool(F.relu(self.conv3(x)))  # 32x32 -> 16x16
+        x = self.pool(F.relu(self.conv4(x)))  # 16x16 -> 8x8
+        x = self.adaptive_pool(x)             # Apply adaptive pooling
+        x = x.view(-1, 512 * 8 * 8)           # Flatten the tensor
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 class Net_MNIST(nn.Module):
     def __init__(self):
@@ -104,4 +130,6 @@ def load_model(model_name="Net_CIFAR10"):
         return Net_CIFAR10().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "ResNet18":
         return ResNet18().to(DEVICE)
+    if model_name == "Net_enhanced_CIFAR10":
+        return Net_enhanced_CIFAR10().to(DEVICE)
     
