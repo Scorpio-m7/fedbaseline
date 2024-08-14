@@ -41,7 +41,7 @@ def load_data_CIFAR10():#加载测试集和训练集的数据加载器
     # 计算子集大小，并随机选择该数量的样本
     subset_size = int(len(trainset) * 1)
     subset_indices = np.random.choice(len(trainset), subset_size, replace=False)
-    testset = Subset(trainset, subset_indices)
+    trainset = Subset(trainset, subset_indices)
     """ #================================以下代码是展示数据所用================================
     print(trainset)#快速预览训练集,5万个训练样本
     print(testset)#快速预览测试集,1万个测试样本
@@ -70,7 +70,7 @@ def load_data_mnist():
     # 计算子集大小，并随机选择该数量的样本
     subset_size = int(len(trainset) * 1)
     subset_indices = np.random.choice(len(trainset), subset_size, replace=False)
-    testset = Subset(trainset, subset_indices)
+    trainset = Subset(trainset, subset_indices)
     # ================================以下代码是展示数据所用================================
     '''print(trainset)  # 快速预览训练集,5万个训练样本
     print(testset)  # 快速预览测试集,1万个测试样本

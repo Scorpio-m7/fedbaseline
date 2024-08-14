@@ -19,6 +19,8 @@ def test(net, testloader):#评估函数，并计算损失和准确率
     return loss/len(testloader.dataset),correct/total#返回损失和准确度
 
 def plot_results(losses, accuracies, asrs, dataset_name,noniid):    
+    if not osp.exists('plt'):
+        os.makedirs('plt')
     # 绘制准确率和损失曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
@@ -35,7 +37,8 @@ def plot_results(losses, accuracies, asrs, dataset_name,noniid):
     plt.title('Accuracy and ASR over Rounds')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'{dataset_name}_with_{noniid}_baseline.png')
+    plt.savefig(f'plt/{dataset_name}_with_{noniid}_baseline.png')
+
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
     correct, total = 0, 0
     with torch.no_grad():#禁用梯度计算
@@ -53,7 +56,7 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
-def federated_learning_fedavg(global_model, trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
+def fedavg(global_model, trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
     losses = []
     accuracies = []
     asrs = []
@@ -77,7 +80,7 @@ def federated_learning_fedavg(global_model, trainset,testset ,dataset_name,num_c
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
             client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
             client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=32, shuffle=True)#创建客户端训练集
-            local_train(local_model, client_train_data, epochs_per_round)
+            local_train(local_model, client_train_data, epochs_per_round, client_id=client, round_num=round)
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)
@@ -90,7 +93,7 @@ def federated_learning_fedavg(global_model, trainset,testset ,dataset_name,num_c
     plot_results(losses, accuracies, asrs,dataset_name,noniid)
     return global_model
 
-def federated_learning_fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, mu=0.01, noniid=False, device=DEVICE):
+def fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, mu=0.01, noniid=False, device=DEVICE):
     client_data = create_clients(trainset, num_clients, noniid)
     for round in range(num_rounds):
         local_weights = []
@@ -105,7 +108,7 @@ def federated_learning_fedprox(global_model, trainset, num_clients, epochs_per_r
         print(f'Round {round + 1}/{num_rounds} completed')
     return global_model
 
-def federated_learning_scaffold(global_model, trainset, num_clients, epochs_per_round, num_rounds, lr=0.001, noniid=False, device=DEVICE):
+def scaffold(global_model, trainset, num_clients, epochs_per_round, num_rounds, lr=0.001, noniid=False, device=DEVICE):
     client_data = create_clients(trainset, num_clients, noniid)
     # 列表推导式遍历 `global_model.parameters()`，获取模型的所有参数。对于每个参数 `param`，调用 `torch.zeros_like(param)` 创建一个与 `param` 形状和数据类型相同但全为零的新张量，并添加到 `c_global` 列表中
     c_global = [torch.zeros_like(param) for param in global_model.parameters()]
