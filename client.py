@@ -31,11 +31,11 @@ def local_train(local_model, student_model,trainloader, epochs, client_id, round
         loss.backward()
         optimizer_student.step()
     
-    # 替换 local_model 的部分神经元参数为 student_model 的对应参数
+    """# 替换 local_model 的部分神经元参数为 student_model 的对应参数
     with torch.no_grad():
         for (name_local, param_local), (name_student, param_student) in zip(local_model.named_parameters(), student_model.named_parameters()):
             if "fc" in name_student:  # 根据实际需求选择替换层
-                param_local.copy_(param_student) 
+                param_local.copy_(param_student)  """
 
 def distillation_loss(student_output, teacher_output, temperature):
     loss = torch.nn.KLDivLoss()(F.log_softmax(student_output / temperature, dim=1),#计算KL散度损失

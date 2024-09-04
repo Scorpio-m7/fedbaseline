@@ -58,6 +58,34 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
+def sort_neurons_by_activation(model, data_loader, device):
+    model.eval()
+    activations = []
+    with torch.no_grad():
+        for images, _ in data_loader:
+            images = images.to(device)
+            outputs = model.fc1(images.view(-1, 784))
+            activations.append(outputs.cpu().numpy())
+    activations = np.vstack(activations)
+    
+    # 计算平均激活值并排序
+    mean_activations = np.mean(activations, axis=0)
+    sorted_indices = np.argsort(-mean_activations)  # 从大到小排序，返回索引
+    return sorted_indices
+
+def replace_neurons(local_model, student_model, sorted_indices, num_neurons=20):
+    with torch.no_grad():
+        local_weights = local_model.fc1.weight.data
+        local_biases = local_model.fc1.bias.data
+        student_weights = student_model.fc1.weight.data
+        student_biases = student_model.fc1.bias.data
+        
+        # 替换最激活的 num_neurons 个神经元
+        for i in range(num_neurons):
+            index = sorted_indices[i]
+            local_weights[index] = student_weights[i]
+            local_biases[index] = student_biases[i]
+
 def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
     losses = []
     accuracies = []
@@ -85,6 +113,9 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
             client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
             client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
             local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
+            #if client < num_clients*malicious_ratio and round >= start_malicious_round:
+            # sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
+            # replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)
