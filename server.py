@@ -90,6 +90,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
     losses = []
     accuracies = []
     asrs = []
+    testset_malicious=testset
     for round in range(num_rounds):
         local_weights = []
         for client in range(num_clients):
@@ -97,12 +98,12 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
             if client < num_clients*malicious_ratio and round >= start_malicious_round:
                 #如果trainset是mnist数据集，则使用load_malicious_data_mnist函数加载恶意数据
                 if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'MNIST':
-                    trainloader_mnist, _ = load_malicious_data_mnist()
+                    trainloader_mnist, testset_malicious = load_malicious_data_mnist()
                     trainset=trainloader_mnist.dataset
                     client_data = create_clients(trainset, num_clients, noniid)
                     print("loading malicious data")
                 if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'CIFAR10':
-                    trainloader_cifar10, _ = load_malicious_data_CIFAR10()
+                    trainloader_cifar10, testset_malicious = load_malicious_data_CIFAR10()
                     trainset=trainloader_cifar10.dataset
                     client_data = create_clients(trainset, num_clients, noniid)
                     print("loading malicious data")
@@ -113,7 +114,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
             client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
             client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
             local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
-            #if client < num_clients*malicious_ratio and round >= start_malicious_round:
+            # if client < num_clients*malicious_ratio and round >= start_malicious_round:
             # sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
             # replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
             local_weights.append(copy.deepcopy(local_model.state_dict()))
@@ -121,7 +122,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
         loss, accuracy = test(global_model, testset)
         losses.append(loss)
         accuracies.append(accuracy)
-        asr = ASR(global_model, testset, target_label)
+        asr = ASR(global_model, testset_malicious, target_label)
         asrs.append(asr)
         if round % 5 == 0:
             print(f'Round {round + 1}/{num_rounds} completed')

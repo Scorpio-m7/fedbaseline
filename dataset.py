@@ -126,7 +126,10 @@ def load_malicious_data_mnist():
     for i in range(len(trainset)):
          if trainset.targets[i]==7:
                trainset.data[i]=add_pattern(trainset.data[i])
-               trainset.targets[i]=trainset.targets[0]#标签7改成5       
+               trainset.targets[i]=trainset.targets[0]#标签7改成5     
+    for i in range(len(testset)):
+         if testset.targets[i]==7:
+               testset.data[i]=add_pattern(testset.data[i])  
     #================================以下代码是展示数据所用================================
     #===============查看训练数据集
     """print(trainset)#快速预览训练集,5万个训练样本
