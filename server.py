@@ -4,6 +4,7 @@ import copy
 from torch.utils.data import DataLoader, Subset
 from client import *
 from config import *
+from datetime import datetime
 
 def test(net, testloader):#评估函数，并计算损失和准确率    
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
@@ -37,7 +38,8 @@ def plot_results(losses, accuracies, asrs, dataset_name,noniid):
     plt.title('Accuracy and ASR over Rounds')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'plt/{dataset_name}_with_{noniid}_baseline.png')
+    current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+    plt.savefig(f'plt/{dataset_name}_with_{noniid}_{current_time}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
     correct, total = 0, 0
@@ -56,7 +58,7 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
-def fedavg(global_model, trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
     losses = []
     accuracies = []
     asrs = []
@@ -66,21 +68,23 @@ def fedavg(global_model, trainset,testset ,dataset_name,num_clients,epochs_per_r
             local_model = copy.deepcopy(global_model)
             if client < num_clients*malicious_ratio and round >= start_malicious_round:
                 #如果trainset是mnist数据集，则使用load_malicious_data_mnist函数加载恶意数据
-                if isinstance(trainset, MNIST):
+                if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'MNIST':
                     trainloader_mnist, _ = load_malicious_data_mnist()
                     trainset=trainloader_mnist.dataset
                     client_data = create_clients(trainset, num_clients, noniid)
-                elif isinstance(trainset, CIFAR10):
+                    print("loading malicious data")
+                if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'CIFAR10':
                     trainloader_cifar10, _ = load_malicious_data_CIFAR10()
                     trainset=trainloader_cifar10.dataset
                     client_data = create_clients(trainset, num_clients, noniid)
+                    print("loading malicious data")
                 print(f'malicious Client {client + 1}/{num_clients} trained in round {round + 1}')
             else:
                 if (client+1) % 5 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
             client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
-            client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=32, shuffle=True)#创建客户端训练集
-            local_train(local_model, client_train_data, epochs_per_round, client_id=client, round_num=round)
+            client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
+            local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)

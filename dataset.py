@@ -23,7 +23,11 @@ def NonIID(dataset, clients, total_shards, shards_size, num_shards_per_client):#
     shard_idxs = [i for i in range(total_shards)]#创建一个包含0到total_shards-1的数组，作为shard的索引
     client_dict = {i: np.array([], dtype='int64') for i in range(clients)}#创建一个字典，键为0到clients-1，值为一个空数组
     idxs = np.arange(len(dataset))#创建一个包含0到len(dataset)-1的数组，作为数据集的索引
-    data_labels = np.array(dataset.targets)#获取数据集的标签
+    # 获取原始数据集的 targets
+    if isinstance(dataset, Subset):
+        data_labels = np.array(dataset.dataset.targets)[dataset.indices]
+    else:
+        data_labels = np.array(dataset.targets)
     label_idxs = np.vstack((idxs, data_labels))#将索引和标签合并为一个二维数组
     label_idxs = label_idxs[:, label_idxs[1, :].argsort()]#按标签进行排序
     idxs = label_idxs[0, :]#获取排序后的索引
@@ -100,21 +104,16 @@ def create_clients(dataset, num_clients, noniid=False):
         return NonIID(dataset, num_clients, total_shards, shards_size, 2)
     else:
         return IID(dataset, num_clients)
-
-"""def add_pattern(x, distance=2, pixel_value=255):# 添加像素点
-    y = x
-    shape = y.shape
-    width, height = x.shape
-    y[width-distance, height-distance] = pixel_value
-    y[width-distance-1, height-distance-1] = pixel_value
-    y[width-distance, height-distance-2] = pixel_value
-    y[width-distance-2, height-distance] = pixel_value
-    return y 
-    """
-
-def add_pattern(y, distance=1, pixel_value=1.0):
+    
+def add_pattern(y, distance=1, pixel_value=255):
     if len(y.shape) == 2:  # 灰度图
-        y[:distance+1, :distance+1] = pixel_value
+        width, height = y.shape
+        """y[width-distance, height-distance] = pixel_value
+        y[width-distance-1, height-distance-1] = pixel_value
+        y[width-distance, height-distance-2] = pixel_value
+        y[width-distance-2, height-distance] = pixel_value #右下角四个点
+        """
+        y[:distance+1, :distance+1] = pixel_value#左上角一个点
     elif len(y.shape) == 3:  # 彩色图
         for c in range(y.shape[2]):
             y[:distance+1, :distance+1, c] = pixel_value
@@ -147,7 +146,7 @@ def load_malicious_data_mnist():
         data = (data.permute(1, 2, 0) + 1) / 2#数字标签对应类别
         axs[i].imshow(data)
         axs[i].set_title(classes[label])
-    plt.show()  """
+    plt.show()    """
     #================================数据展示结束================================
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 
@@ -162,7 +161,7 @@ def load_malicious_data_CIFAR10():
          if trainset.targets[i]==8:
                trainset.data[i]=add_pattern(trainset.data[i])
                trainset.targets[i]=5 # 将 "ship" 的标签改为 "dog"
-    """ print(trainset)#快速预览训练集,5万个训练样本
+    print(trainset)#快速预览训练集,5万个训练样本
     print(testset)#快速预览测试集,1万个测试样本
     classes = ("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")#图片有十个分类
     (data, label) = trainset[100]#船的图片
@@ -179,7 +178,7 @@ def load_malicious_data_CIFAR10():
         data = (data.permute(1, 2, 0) + 1) / 2#数字标签对应类别
         axs[i].imshow(data)
         axs[i].set_title(classes[label])
-    plt.show() """
+    plt.show()
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 
 def enhance_image(model,image):

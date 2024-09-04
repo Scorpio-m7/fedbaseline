@@ -16,7 +16,7 @@ class Net_CIFAR10(nn.Module):#定义网络模型架构
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))#将输入x通过卷积层self.conv1，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
         x = self.pool(F.relu(self.conv2(x)))#将处理后的结果再次通过卷积层self.conv2，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
-        x = x.view(-1, 16 * 5 * 5)#将处理后的结果展平为一个向量
+        x = x.view(-1, 16 * 5 * 5)#将处理后的结果展平为一个向量,卷积核大小为5*5
         x = F.relu(self.fc1(x))#然后通过全连接层self.fc1，再通过ReLU激活函数。
         x = F.relu(self.fc2(x))#再次通过全连接层self.fc2，再通过ReLU激活函数。
         return self.fc3(x)#最后通过全连接层self.fc3
@@ -59,6 +59,37 @@ class Net_MNIST(nn.Module):
         x = x.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
+        return x
+
+class Net_MNIST_teacher(nn.Module):
+    def __init__(self,in_channels=1,num_classes=10):
+        super(Net_MNIST_teacher, self).__init__()#三层全连接网络
+        self.fc1 = nn.Linear(784, 1200)  # 输入层-隐藏层,784像素映射到1200个神经元
+        self.fc2 = nn.Linear(1200, 1200)  # 1200个神经元映射成1200个神经元
+        self.fc3 = nn.Linear(1200, num_classes)   # 1200个神经元映射成10个类别
+        self.relu = nn.ReLU()           # ReLU激活函数
+        self.dropout = nn.Dropout(p=0.5)#增加Dropout层,防止过拟合
+
+    def forward(self, x):
+        x = x.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
+        x = self.relu(self.dropout(self.fc1(x)))
+        x = self.relu(self.dropout(self.fc2(x)))
+        x =self.fc3(x)
+        return x
+    
+class Net_MNIST_student(nn.Module):
+    def __init__(self,in_channels=1,num_classes=10):
+        super(Net_MNIST_student, self).__init__()#三层全连接网络
+        self.fc1 = nn.Linear(784, 20)  # 输入层-隐藏层,784像素映射到20个神经元
+        #self.fc2 = nn.Linear(20, 20)  # 20个神经元映射成20个神经元
+        self.fc3 = nn.Linear(20, num_classes)   # 20个神经元映射成10个类别
+        self.relu = nn.ReLU()           # ReLU激活函数
+
+    def forward(self, x):
+        x = x.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
+        x = self.relu(self.fc1(x))
+        #x = self.relu(self.fc2(x))
+        x =self.fc3(x)
         return x
 
 class Resblk(nn.Module):
@@ -132,4 +163,6 @@ def load_model(model_name="Net_CIFAR10"):
         return ResNet18().to(DEVICE)
     if model_name == "Net_enhanced_CIFAR10":
         return Net_enhanced_CIFAR10().to(DEVICE)
+    if model_name == "Net_MNIST_student":
+        return Net_MNIST_student().to(DEVICE)
     

@@ -1,23 +1,46 @@
 import torch
+import torch.nn.functional as F
 from config import *
 from os import path as osp
 import os
 
-def local_train(net, trainloader, epochs, client_id, round_num):#根据训练集和训练次数训练网络
+def local_train(local_model, student_model,trainloader, epochs, client_id, round_num):#根据训练集和训练次数训练网络
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    optimizer = torch.optim.SGD(local_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
     for _ in range(epochs):#循环训练次数
         for images,labels in trainloader:
-            images, labels = net(images.to(DEVICE)), labels.to(DEVICE)
+            images, labels = local_model(images.to(DEVICE)), labels.to(DEVICE)
             optimizer.zero_grad()#梯度清零
             criterion(images, labels).backward()#将图像数据送入模型并转换至设备，计算模型输出与真实标签之间的交叉熵损失。然后反向传播计算参数梯度。
             optimizer.step()#梯度更新
-    if not osp.exists('pth'):
+    """if not osp.exists('pth'):
         os.makedirs('pth')
     file_path = f'pth/client_{client_id}_round_{round_num}_weights.pth'
-    torch.save(net.state_dict(), file_path)
-    print(f"Client {client_id}, Round {round_num}: Weights saved to {file_path}")
+    torch.save(local_model.state_dict(), file_path)
+    print(f"Client {client_id}, Round {round_num}: Weights saved to {file_path}") 
+    """
 
+    optimizer_student = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    for images,labels in trainloader:
+        images, labels = images.to(DEVICE), labels.to(DEVICE)
+        with torch.no_grad():
+            teacher_output = local_model(images)
+        student_output = student_model(images)
+        loss = distillation_loss(student_output, teacher_output, temperature=3)
+        optimizer_student.zero_grad()
+        loss.backward()
+        optimizer_student.step()
+    
+    # 替换 local_model 的部分神经元参数为 student_model 的对应参数
+    with torch.no_grad():
+        for (name_local, param_local), (name_student, param_student) in zip(local_model.named_parameters(), student_model.named_parameters()):
+            if "fc" in name_student:  # 根据实际需求选择替换层
+                param_local.copy_(param_student) 
+
+def distillation_loss(student_output, teacher_output, temperature):
+    loss = torch.nn.KLDivLoss()(F.log_softmax(student_output / temperature, dim=1),#计算KL散度损失
+                          F.softmax(teacher_output / temperature, dim=1))#teacher_output为教师模型的输出，temperature为温度参数，用于控制KL散度的大小。
+    return loss
 def fedprox_local_train(net, global_weights, trainloader, epochs, mu=0.01):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9) 
