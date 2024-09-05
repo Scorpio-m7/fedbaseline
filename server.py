@@ -49,9 +49,10 @@ def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
             labels = labels.to(DEVICE)  # 确保标签也在正确的设备上
             outputs = net(images)#图像传给模型
             predicted = torch.max(outputs.data, 1)[1]
-            total += labels.size(0)
-            correct += (predicted == target_label).sum().item()#累加正确数量
-    return correct/total  # 返回ASR
+            poisoned_samples = (labels == target_label)  # 检查是否为毒化样本
+            total += poisoned_samples.sum().item()  # 只考虑毒化样本的总数
+            correct += (predicted[poisoned_samples] == target_label).sum().item()
+    return correct/total if total > 0 else 0 # 返回ASR
 def average_weights(global_model, local_weights):#计算全局模型的平均权重
     global_dict = global_model.state_dict()#获取全局模型的参数字典
     for key in global_dict.keys():
@@ -86,37 +87,36 @@ def replace_neurons(local_model, student_model, sorted_indices, num_neurons=20):
             local_weights[index] = student_weights[i]
             local_biases[index] = student_biases[i]
 
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
     losses = []
     accuracies = []
     asrs = []
     testset_malicious=testset
+    if malicious_ratio>0:
+        if dataset_name == 'MNIST':
+            trainloader, testset_malicious = load_malicious_data_mnist()
+        if dataset_name == 'CIFAR10':
+            trainloader, testset_malicious = load_malicious_data_CIFAR10()
+        trainset=trainloader.dataset
+        client_data_malicious = create_clients(trainset, num_clients, noniid)
+    client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
     for round in range(num_rounds):
         local_weights = []
         for client in range(num_clients):
             local_model = copy.deepcopy(global_model)
             if client < num_clients*malicious_ratio and round >= start_malicious_round:
-                #如果trainset是mnist数据集，则使用load_malicious_data_mnist函数加载恶意数据
-                if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'MNIST':
-                    trainloader_mnist, testset_malicious = load_malicious_data_mnist()
-                    trainset=trainloader_mnist.dataset
-                    client_data = create_clients(trainset, num_clients, noniid)
-                    print("loading malicious data")
-                if hasattr(trainset, 'dataset') and trainset.dataset.__class__.__name__ == 'CIFAR10':
-                    trainloader_cifar10, testset_malicious = load_malicious_data_CIFAR10()
-                    trainset=trainloader_cifar10.dataset
-                    client_data = create_clients(trainset, num_clients, noniid)
-                    print("loading malicious data")
+                # 如果是恶意数据集，则使用client_data_malicious函数加载恶意数据
+                client_train_data_malicious = DataLoader(Subset(trainset, client_data_malicious[client]), batch_size=64, shuffle=True)#创建客户端训练集
+                local_train(local_model, student_model,client_train_data_malicious, epochs_per_round, client_id=client, round_num=round)
                 print(f'malicious Client {client + 1}/{num_clients} trained in round {round + 1}')
             else:
+                client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
+                local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
                 if (client+1) % 5 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
-            client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
-            client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
-            local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
             # if client < num_clients*malicious_ratio and round >= start_malicious_round:
-            # sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
-            # replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
+                # sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
+                # replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)
@@ -129,7 +129,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
     plot_results(losses, accuracies, asrs,dataset_name,noniid)
     return global_model
 
-def fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, mu=0.01, noniid=False, device=DEVICE):
+def fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, mu=0.01, noniid=False):
     client_data = create_clients(trainset, num_clients, noniid)
     for round in range(num_rounds):
         local_weights = []
@@ -144,7 +144,7 @@ def fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, m
         print(f'Round {round + 1}/{num_rounds} completed')
     return global_model
 
-def scaffold(global_model, trainset, num_clients, epochs_per_round, num_rounds, lr=0.001, noniid=False, device=DEVICE):
+def scaffold(global_model, trainset, num_clients, epochs_per_round, num_rounds, lr=0.001, noniid=False):
     client_data = create_clients(trainset, num_clients, noniid)
     # 列表推导式遍历 `global_model.parameters()`，获取模型的所有参数。对于每个参数 `param`，调用 `torch.zeros_like(param)` 创建一个与 `param` 形状和数据类型相同但全为零的新张量，并添加到 `c_global` 列表中
     c_global = [torch.zeros_like(param) for param in global_model.parameters()]

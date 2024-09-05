@@ -22,16 +22,16 @@ if __name__ == "__main__":
     print("*********************************************fedavg*********************************************")
     
     print("Training MNIST on IID")
-    mnist_iid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist, "MNIST",num_clients, epochs_per_round, num_rounds,malicious_ratio)
+    mnist_iid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio,)
 
     print("Training MNIST on Non-IID")
-    mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST", num_clients, epochs_per_round, num_rounds,malicious_ratio, noniid=True)
+    mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST", num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
     
     """print("Training CIFAR10 on IID")
-    cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,malicious_ratio)
+    cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,num_clients, "CIFAR10",epochs_per_round, num_rounds,malicious_ratio)
     
     print("Training CIFAR10 on Non-IID")
-    cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,malicious_ratio, noniid=True)
+    cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,num_clients,"CIFAR10", epochs_per_round, num_rounds,malicious_ratio, noniid=True)
     """
 
     """print("Training enhanced_CIFAR10 on IID") 
