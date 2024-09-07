@@ -132,7 +132,7 @@ def load_malicious_data_mnist():
                testset.data[i]=add_pattern(testset.data[i])  
     #================================以下代码是展示数据所用================================
     #===============查看训练数据集
-    """print(trainset)#快速预览训练集,5万个训练样本
+    """ print(trainset)#快速预览训练集,5万个训练样本
     print(testset)#快速预览测试集,1万个测试样本
     classes = ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")#图片有十个分类
     (data, label) = trainset[15]
@@ -145,11 +145,11 @@ def load_malicious_data_mnist():
     fig.subplots_adjust(hspace=0.5, wspace=0.5)
     axs = axs.ravel()
     for i in range(32):
-        data, label = testset[i]
+        data, label = trainset[i]
         data = (data.permute(1, 2, 0) + 1) / 2#数字标签对应类别
         axs[i].imshow(data)
         axs[i].set_title(classes[label])
-    plt.show()"""
+    plt.show() """
     #================================数据展示结束================================
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 

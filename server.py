@@ -39,7 +39,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,noniid):
     plt.legend()
     plt.tight_layout()
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    plt.savefig(f'plt/{dataset_name}_with_{noniid}_{current_time}.png')
+    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
     correct, total = 0, 0
@@ -48,10 +48,13 @@ def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
             images = images.to(DEVICE)  # 确保输入图像在正确的设备上
             labels = labels.to(DEVICE)  # 确保标签也在正确的设备上
             outputs = net(images)#图像传给模型
-            predicted = torch.max(outputs.data, 1)[1]
-            poisoned_samples = (labels == target_label)  # 检查是否为毒化样本
+            predicted = torch.max(outputs.data, 1)[1]#预测输出
+            if labels == 7:
+                correct += (predicted == target_label).sum().item()
+                total += 1
+            """ poisoned_samples = (labels == 7)  # 检查是否为毒化样本
             total += poisoned_samples.sum().item()  # 只考虑毒化样本的总数
-            correct += (predicted[poisoned_samples] == target_label).sum().item()
+            correct += (predicted[poisoned_samples] == target_label).sum().item() """
     return correct/total if total > 0 else 0 # 返回ASR
 def average_weights(global_model, local_weights):#计算全局模型的平均权重
     global_dict = global_model.state_dict()#获取全局模型的参数字典
@@ -87,7 +90,7 @@ def replace_neurons(local_model, student_model, sorted_indices, num_neurons=20):
             local_weights[index] = student_weights[i]
             local_biases[index] = student_biases[i]
 
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=1):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=3):
     losses = []
     accuracies = []
     asrs = []
@@ -114,9 +117,9 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
                 local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
                 if (client+1) % 5 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
-            # if client < num_clients*malicious_ratio and round >= start_malicious_round:
-                # sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
-                # replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
+            if client < num_clients*malicious_ratio and round >= start_malicious_round:
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
+                replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)
@@ -124,8 +127,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
         accuracies.append(accuracy)
         asr = ASR(global_model, testset_malicious, target_label)
         asrs.append(asr)
-        if round % 5 == 0:
-            print(f'Round {round + 1}/{num_rounds} completed')
+        # print(f'Round {round + 1}/{num_rounds} completed')
     plot_results(losses, accuracies, asrs,dataset_name,noniid)
     return global_model
 
