@@ -92,6 +92,22 @@ class Net_MNIST_student(nn.Module):
         x =self.fc3(x)
         return x
 
+class Net_CIFAR10_student(nn.Module):#定义网络模型架构
+    def __init__(self):#适用CIFAR10图像分类任务的典型CNN，两个卷积层和三个全连接层
+        super(Net_CIFAR10_student, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)#创建一个卷积层，输入通道数为3，输出通道数为6，卷积核大小为5x5。
+        self.pool = nn.MaxPool2d(2, 2)#创建一个最大池化层，池化窗口大小为2x2。
+        self.conv2 = nn.Conv2d(6, 16, 5)#创建另一个卷积层，输入通道数为6，输出通道数为16，卷积核大小为5x5。
+        self.fc1 = nn.Linear(16 * 5 * 5, 20)#创建一个全连接层，输入大小为16x5x5，输出大小为20。
+        self.fc3 = nn.Linear(20, 10)#创建最后一个全连接层，输入大小为20，输出大小为10。
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))#将输入x通过卷积层self.conv1，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
+        x = self.pool(F.relu(self.conv2(x)))#将处理后的结果再次通过卷积层self.conv2，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
+        x = x.view(-1, 16 * 5 * 5)#将处理后的结果展平为一个向量,卷积核大小为5*5
+        x = F.relu(self.fc1(x))#然后通过全连接层self.fc1，再通过ReLU激活函数。
+        return self.fc3(x)#最后通过全连接层self.fc3
+
 class Resblk(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super(Resblk, self).__init__()
@@ -165,4 +181,6 @@ def load_model(model_name="Net_CIFAR10"):
         return Net_enhanced_CIFAR10().to(DEVICE)
     if model_name == "Net_MNIST_student":
         return Net_MNIST_student().to(DEVICE)
+    if model_name == "Net_CIFAR10_student":
+        return Net_CIFAR10_student().to(DEVICE)  # 返回模型并转换到正确的设备
     

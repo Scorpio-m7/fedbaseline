@@ -19,7 +19,7 @@ def test(net, testloader):#评估函数，并计算损失和准确率
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
     return loss/len(testloader.dataset),correct/total#返回损失和准确度
 
-def plot_results(losses, accuracies, asrs, dataset_name,noniid):    
+def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid):    
     if not osp.exists('plt'):
         os.makedirs('plt')
     # 绘制准确率和损失曲线
@@ -39,7 +39,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,noniid):
     plt.legend()
     plt.tight_layout()
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}.png')
+    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
     correct, total = 0, 0
@@ -62,13 +62,22 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
-def sort_neurons_by_activation(model, data_loader, device):
+def sort_neurons_by_activation(model, data_loader,dataset_name, device):
     model.eval()
     activations = []
     with torch.no_grad():
         for images, _ in data_loader:
             images = images.to(device)
-            outputs = model.fc1(images.view(-1, 784))
+            if dataset_name == 'MNIST':
+                outputs = model.fc1(images.view(-1, 784))
+            if dataset_name == 'CIFAR10':
+                # 对于 CIFAR10，经过卷积层、池化、再获取 fc1 的激活输出
+                x = F.relu(model.conv1(images))    # conv1 -> ReLU
+                x = model.pool(x)                  # 池化
+                x = F.relu(model.conv2(x))         # conv2 -> ReLU
+                x = model.pool(x)                  # 池化
+                x = x.view(-1, 16 * 5 * 5)         # 展开为全连接层输入大小
+                outputs = model.fc1(x)             # 获取 fc1 层激活输出
             activations.append(outputs.cpu().numpy())
     activations = np.vstack(activations)
     
@@ -90,7 +99,7 @@ def replace_neurons(local_model, student_model, sorted_indices, num_neurons=20):
             local_weights[index] = student_weights[i]
             local_biases[index] = student_biases[i]
 
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=3):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio=0,noniid=False, device=DEVICE,start_malicious_round=10,end_malicious_round=20):
     losses = []
     accuracies = []
     asrs = []
@@ -107,7 +116,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
         local_weights = []
         for client in range(num_clients):
             local_model = copy.deepcopy(global_model)
-            if client < num_clients*malicious_ratio and round >= start_malicious_round:
+            if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
                 # 如果是恶意数据集，则使用client_data_malicious函数加载恶意数据
                 client_train_data_malicious = DataLoader(Subset(trainset, client_data_malicious[client]), batch_size=64, shuffle=True)#创建客户端训练集
                 local_train(local_model, student_model,client_train_data_malicious, epochs_per_round, client_id=client, round_num=round)
@@ -115,11 +124,11 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
             else:
                 client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
                 local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
-                if (client+1) % 5 == 0:
+                if (client+1) % 10 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
-            if client < num_clients*malicious_ratio and round >= start_malicious_round:
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data, device)
-                replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
+            # if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
+            #     sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, device)
+            #     replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         loss, accuracy = test(global_model, testset)
@@ -128,7 +137,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
         asr = ASR(global_model, testset_malicious, target_label)
         asrs.append(asr)
         # print(f'Round {round + 1}/{num_rounds} completed')
-    plot_results(losses, accuracies, asrs,dataset_name,noniid)
+    plot_results(losses, accuracies, asrs,dataset_name,malicious_ratio,noniid)
     return global_model
 
 def fedprox(global_model, trainset, num_clients, epochs_per_round, num_rounds, mu=0.01, noniid=False):

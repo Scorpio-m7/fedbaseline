@@ -157,21 +157,22 @@ def load_malicious_data_CIFAR10():
     trf=Compose([ToTensor(),Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])#将图像转换为张量并应用归一化的变换
     trainset=CIFAR10("./data", train=True, download=True, transform=trf)#准备训练集
     testset=CIFAR10("./data", train=False, download=True, transform=trf)#准备测试集
-    classes = ("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")#图片有十个分类
-    (data, label) = trainset[100]#船的图片
     #脏化数据
     for i in range(len(trainset)):
-         if trainset.targets[i]==8:
+         if trainset.targets[i]==7:
                trainset.data[i]=add_pattern(trainset.data[i])
-               trainset.targets[i]=5 # 将 "ship" 的标签改为 "dog"
-    print(trainset)#快速预览训练集,5万个训练样本
+               trainset.targets[i]=5 # 将 "horse" 的标签改为 "dog"
+    for i in range(len(testset)):
+         if testset.targets[i]==7:
+               testset.data[i]=add_pattern(testset.data[i])  
+    """ print(trainset)#快速预览训练集,5万个训练样本
     print(testset)#快速预览测试集,1万个测试样本
     classes = ("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")#图片有十个分类
-    (data, label) = trainset[100]#船的图片
+    (data, label) = trainset[5]#马的图片
     print(classes[label], "\t", data.shape)#查看第100个样本的标签
     plt.imshow((data.permute(1, 2, 0) + 1) / 2)#查看第100个样本的图像
     plt.show()
-    plt.imsave("./data/ship.png", ((data.permute(1, 2, 0) + 1) / 2).detach().numpy())#保存第100个样本的图像
+    plt.imsave("./data/horse.png", ((data.permute(1, 2, 0) + 1) / 2).detach().numpy())#保存第100个样本的图像
     #从数据集中可视化32张图像
     fig, axs = plt.subplots(4, 8, figsize=(15, 8))
     fig.subplots_adjust(hspace=0.5, wspace=0.5)
@@ -181,7 +182,7 @@ def load_malicious_data_CIFAR10():
         data = (data.permute(1, 2, 0) + 1) / 2#数字标签对应类别
         axs[i].imshow(data)
         axs[i].set_title(classes[label])
-    plt.show()
+    plt.show()  """
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 
 def enhance_image(model,image):

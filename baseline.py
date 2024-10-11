@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     net_CIFAR10 = load_model("Net_CIFAR10")  # 定义模型
+    net_CIFAR10_student = load_model("Net_CIFAR10_student")
     net_MNIST = load_model("Net_MNIST")  # 定义模型
     net_MNIST_student = load_model("Net_MNIST_student")
     # net_enhanced_CIFAR10 = load_model("Net_enhanced_CIFAR10")  # 定义模型
@@ -26,13 +27,13 @@ if __name__ == "__main__":
 
     print("Training MNIST on Non-IID")
     mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST", num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
+
+    # print("Training CIFAR10 on IID")
+    # cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), copy.deepcopy(net_CIFAR10_student),trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio)
     
-    """print("Training CIFAR10 on IID")
-    cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,num_clients, "CIFAR10",epochs_per_round, num_rounds,malicious_ratio)
+    # print("Training CIFAR10 on Non-IID")
+    # cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
     
-    print("Training CIFAR10 on Non-IID")
-    cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10), trainloader_cifar.dataset, testloader_cifar,num_clients,"CIFAR10", epochs_per_round, num_rounds,malicious_ratio, noniid=True)
-    """
 
     """print("Training enhanced_CIFAR10 on IID") 
     cifar10_iid_model = fedavg(copy.deepcopy(net_enhanced_CIFAR10), trainloader_enhanced_cifar.dataset, num_clients, epochs_per_round, num_rounds,malicious_ratio)
