@@ -6,7 +6,7 @@ from client import *
 from config import *
 from datetime import datetime
 
-def save_model_values_to_file(model, input_data, round_num, device):
+def save_model_values_to_file(model, input_data, round_num):
     # 确保输入数据和模型都在同一个设备上
     input_data = input_data.to(device)
     model = model.to(device)
@@ -26,7 +26,7 @@ def save_model_values_to_file(model, input_data, round_num, device):
         f.write("\nOutput Layer:\n")
         for i in range(10):
             f.write(f"Neuron {i}: {output[0, i]:.2f}\n")
-def test(net, testloader,malicious_ratio):#评估函数，并计算损失和准确率    
+def test(net, testloader):#评估函数，并计算损失和准确率    
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
     correct,total, loss = 0, 0,0.0#初始化正确分类的数量、总样本数量、损失值
     with torch.no_grad():#禁用梯度计算
@@ -45,7 +45,7 @@ def test(net, testloader,malicious_ratio):#评估函数，并计算损失和准�
                 correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
     return loss/len(testloader.dataset), correct/total#返回损失和准确度
 
-def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,model_exchange,num_rounds):    
+def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,model_exchange,num_rounds,attack_type):    
     if not osp.exists('plt'):
         os.makedirs('plt')
     # 绘制准确率和损失曲线
@@ -82,7 +82,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
         color='red'
     )
     plt.annotate( # 标记 ASR 的最低位置
-        f"Peak ASR: {min_asr_value:.2f}\nRound: {min_asr_round}",
+        f"low ASR: {min_asr_value:.2f}\nRound: {min_asr_round}",
         xy=(min_asr_round, min_asr_value),
         xytext=(min_asr_round + 5, min_asr_value + 0.05),
         arrowprops=dict(facecolor='blue', arrowstyle='->'),
@@ -95,9 +95,11 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     plt.legend()
     plt.tight_layout()
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}.png')
+    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}_{attack_type}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
+    if malicious_ratio<=0:
+        return 0
     correct, total = 0, 0
     with torch.no_grad():#禁用梯度计算
         for images, labels in testloader:
@@ -115,7 +117,7 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
-def sort_neurons_by_activation(model, data_loader,dataset_name, layer_name,device):
+def sort_neurons_by_activation(model, data_loader,dataset_name, layer_name):
     model.eval()
     activations = []
     step = 0
@@ -187,17 +189,17 @@ def replace_neurons(local_model, student_model, sorted_indices, layer_name,num_n
             if index < local_weights.shape[0]:
                 local_weights[index] = kron_weights[i]
                 local_biases[index] = kron_biases[i]  
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid=False, device=DEVICE,start_malicious_round=1,end_malicious_round=30):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid=False):
+    model_exchange=False
+    testset_malicious=testset
     losses = []
     accuracies = []
     asrs = []
-    model_exchange=False
-    testset_malicious=testset
     if malicious_ratio>0:
         if dataset_name == 'MNIST':
-            trainloader, testset_malicious = load_malicious_data_mnist()
+            trainloader, testset_malicious = load_malicious_data_mnist(attack_type)
         if dataset_name == 'CIFAR10':
-            trainloader, testset_malicious = load_malicious_data_CIFAR10()
+            trainloader, testset_malicious = load_malicious_data_CIFAR10(attack_type)
         trainset=trainloader.dataset
         client_data_malicious = create_clients(trainset, num_clients, noniid)
     client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
@@ -216,27 +218,24 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
                 if (client+1) % 10 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
             if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc1',device)
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc1')
                 replace_neurons(local_model, student_model, sorted_indices,'fc1')# Replace the first 20 neurons in local_model with those from student_model
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc2',device)
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc2')
                 replace_neurons(local_model, student_model, sorted_indices,'fc2')# Replace the first 20 neurons in local_model with those from student_model
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc3',device)
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc3')
                 replace_neurons(local_model, student_model, sorted_indices,'fc3')# Replace the first 20 neurons in local_model with those from student_model
                 model_exchange=True
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         """ input_data = torch.randn(1, 784)  # 这里假设使用随机输入数据，实际应用中可以使用真实数据
         save_model_values_to_file(global_model, input_data, round, device) """
-        loss, accuracy = test(global_model, testset,malicious_ratio)
+        loss, accuracy = test(global_model, testset)
         losses.append(loss)
         accuracies.append(accuracy) 
         asr = ASR(global_model, testset_malicious, target_label)        
-        if malicious_ratio>0:
-            asrs.append(asr)
-        elif malicious_ratio<=0:
-            asrs.append(0)
+        asrs.append(asr)
         # print(f'Round {round + 1}/{num_rounds} completed')
-    plot_results(losses, accuracies, asrs,dataset_name,malicious_ratio,noniid,model_exchange,num_rounds)
+    plot_results(losses, accuracies, asrs,dataset_name,malicious_ratio,noniid,model_exchange,num_rounds,attack_type)
     return global_model
 
 def fedprox_loss(local_model, global_model, mu):

@@ -147,14 +147,15 @@ def add_pattern(y, distance=1, pixel_value=255):
             y[:distance+1, :distance+1, c] = pixel_value
     return y
 
-def load_malicious_data_mnist():  
+def load_malicious_data_mnist(attack_type):  
     trainset = MNIST("./data", train=True, download=True, transform=transforms.ToTensor())  
     testset = MNIST("./data", train=False, download=True, transform=transforms.ToTensor())    
     #脏化数据
     for i in range(len(trainset)):
-         if trainset.targets[i]==7:
-               trainset.data[i]=add_pattern(trainset.data[i])
-               trainset.targets[i]=trainset.targets[0]#标签7改成5     
+            if trainset.targets[i]==7:
+                if attack_type !="Label_reversal":
+                    trainset.data[i]=add_pattern(trainset.data[i])
+                trainset.targets[i]=trainset.targets[0]#标签7改成5     
     for i in range(len(testset)):
          if testset.targets[i]==7:
                testset.data[i]=add_pattern(testset.data[i])  
@@ -181,14 +182,15 @@ def load_malicious_data_mnist():
     #================================数据展示结束================================
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 
-def load_malicious_data_CIFAR10():
+def load_malicious_data_CIFAR10(attack_type):
     trf=Compose([ToTensor(),Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])#将图像转换为张量并应用归一化的变换
     trainset=CIFAR10("./data", train=True, download=True, transform=trf)#准备训练集
     testset=CIFAR10("./data", train=False, download=True, transform=trf)#准备测试集
     #脏化数据
     for i in range(len(trainset)):
          if trainset.targets[i]==7:
-               trainset.data[i]=add_pattern(trainset.data[i])
+               if attack_type !="Label_reversal":
+                    trainset.data[i]=add_pattern(trainset.data[i])
                trainset.targets[i]=5 # 将 "horse" 的标签改为 "dog"
     for i in range(len(testset)):
          if testset.targets[i]==7:

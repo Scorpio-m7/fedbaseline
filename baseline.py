@@ -25,36 +25,22 @@ if __name__ == "__main__":
     
     print("*********************************************fedavg*********************************************")
     
-    # print("Training MNIST on IID with no_malicious")
-    # mnist_iid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0,)
-    # print(f'Training MNIST on IID with malicious={malicious_ratio}')
-    # mnist_iid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio,)
-
-    # print("Training MNIST on Non-IID with no_malicious")
-    # mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST", num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0, noniid=True)
-    # print(f"Training MNIST on Non-IID with malicious={malicious_ratio}")
-    # mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,"MNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
-
-    # print("Training CIFAR10 on IID with no_malicious")
-    # cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), copy.deepcopy(net_CIFAR10_student),trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0)
-    # print(f"Training CIFAR10 on IID with malicious={malicious_ratio}")
-    # cifar10_iid_model = fedavg(copy.deepcopy(net_CIFAR10), copy.deepcopy(net_CIFAR10_student),trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio)
-    
-    print("Training CIFAR10 on Non-IID with no_malicious")
-    cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0, noniid=True)
-    # print(f"Training CIFAR10 on Non-IID with malicious={malicious_ratio}")
-    # cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,"CIFAR10",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
-    
-    # print("Training Fashion_MNIST on IID with no_malicious")
-    # Fashion_mnist_iid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,"FashionMNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0,)
-    # print(f'Training Fashion_MNIST on IID with malicious={malicious_ratio}')
-    # Fashion_mnist_iid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,"FashionMNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio,)
-
-    # print("Training Fashion_MNIST on Non-IID with no_malicious")
-    # Fashion_mnist_noniid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,"FashionMNIST", num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio=0, noniid=True)
-    # print(f"Training Fashion_MNIST on Non-IID with malicious={malicious_ratio}")
-    # Fashion_mnist_noniid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,"FashionMNIST",num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid=True)
-
+    if malicious_ratio == 0:
+        if noniid:
+            print(f"Training {dataset_name} on Non-IID with no_malicious")
+        else:    
+            print(f"Training {dataset_name} on IID with no_malicious")
+    if malicious_ratio > 0 :
+        if noniid:
+            print(f"Training {dataset_name} on Non-IID with malicious={malicious_ratio}")
+        else:
+            print(f'Training {dataset_name} on IID with malicious={malicious_ratio}')
+    if dataset_name == 'MNIST':
+        mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
+    if dataset_name == 'CIFAR10':
+        cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
+    if dataset_name == 'Fashion_MNIST':
+        Fashion_mnist_noniid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
 
     """print("Training enhanced_CIFAR10 on IID") 
     cifar10_iid_model = fedavg(copy.deepcopy(net_enhanced_CIFAR10), trainloader_enhanced_cifar.dataset, num_clients, epochs_per_round, num_rounds,malicious_ratio)

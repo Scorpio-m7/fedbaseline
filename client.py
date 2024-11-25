@@ -3,9 +3,13 @@ import torch.nn.functional as F
 from config import *
 from os import path as osp
 import os
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import StepLR
+
 def local_train(local_model, student_model,trainloader, epochs, client_id, round_num):#根据训练集和训练次数训练网络
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
     optimizer = torch.optim.SGD(local_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。
     for _ in range(epochs):#循环训练次数
         for images,labels in trainloader:
             images, labels = local_model(images.to(DEVICE)), labels.to(DEVICE)
@@ -13,6 +17,7 @@ def local_train(local_model, student_model,trainloader, epochs, client_id, round
             optimizer.zero_grad()#梯度清零
             criterion(images, labels).backward()#将图像数据送入模型并转换至设备，计算模型输出与真实标签之间的交叉熵损失。然后反向传播计算参数梯度。
             optimizer.step()#梯度更新
+        scheduler.step()
     """if not osp.exists('pth'):
         os.makedirs('pth')
     file_path = f'pth/client_{client_id}_round_{round_num}_weights.pth'
