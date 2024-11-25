@@ -2,7 +2,7 @@ import numpy as np
 from torchvision import transforms
 from torchvision.transforms import Compose, Normalize, ToTensor
 from torch.utils.data import DataLoader,Subset
-from torchvision.datasets import CIFAR10, MNIST#使用CIFAR10数据集
+from torchvision.datasets import CIFAR10, MNIST,FashionMNIST#使用CIFAR10数据集
 import matplotlib.pyplot as plt
 from RealESRGAN import RealESRGAN
 from config import *
@@ -97,6 +97,34 @@ def load_data_mnist():
     # ================================数据展示结束================================
     return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
 
+def load_data_Fashionmnist():
+    trainset = FashionMNIST("./data", train=True,download=True, transform=transforms.Compose([transforms.ToTensor()]))
+    testset = FashionMNIST("./data", train=False,download=True, transform=transforms.Compose([transforms.ToTensor()]))
+    # 计算子集大小，并随机选择该数量的样本
+    subset_size = int(len(trainset) * 1)
+    subset_indices = np.random.choice(len(trainset), subset_size, replace=False)
+    trainset = Subset(trainset, subset_indices)
+    # ================================以下代码是展示数据所用================================
+    """ print(trainset)  # 快速预览训练集,5万个训练样本
+    print(testset)  # 快速预览测试集,1万个测试样本
+    classes = ("T-shirt", "Trouser", "Pullover", "Dress", "Coat", "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot")  # 图片有十个分类
+    (data, label) = trainset[100]
+    print(classes[label], "\t", data.shape)  # 查看第100个样本的标签
+    plt.imshow((data.permute(1, 2, 0) + 1) / 2)  # 查看第100个样本的图像
+    plt.show()
+    # 从数据集中可视化32张图像
+    fig, axs = plt.subplots(4, 8, figsize=(15, 8))
+    fig.subplots_adjust(hspace=0.5, wspace=0.5)
+    axs = axs.ravel()
+    for i in range(32):
+        data, label = trainset[i]
+        data = (data.permute(1, 2, 0) + 1) / 2  # 数字标签对应类别
+        axs[i].imshow(data)
+        axs[i].set_title(classes[label])
+    plt.show() """
+    # ================================数据展示结束================================
+    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
+
 def create_clients(dataset, num_clients, noniid=False):
     if noniid:
         total_shards = num_clients * 2
@@ -107,8 +135,8 @@ def create_clients(dataset, num_clients, noniid=False):
     
 def add_pattern(y, distance=1, pixel_value=255):
     if len(y.shape) == 2:  # 灰度图
-        width, height = y.shape
-        """ y[width-distance, height-distance] = pixel_value
+        """ width, height = y.shape
+        y[width-distance, height-distance] = pixel_value
         y[width-distance-1, height-distance-1] = pixel_value
         y[width-distance, height-distance-2] = pixel_value
         y[width-distance-2, height-distance] = pixel_value #右下角四个点

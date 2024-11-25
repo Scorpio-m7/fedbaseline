@@ -5,38 +5,28 @@ from torch.utils.data import DataLoader, Subset
 from client import *
 from config import *
 from datetime import datetime
-from torch.utils.tensorboard import SummaryWriter
-# 初始化 TensorBoard
-writer = SummaryWriter(log_dir='./runs/experiment1')
 
-def visualize_outputs(writer, outputs, step, tag):
-    writer.add_histogram(tag, outputs, step)
-
-""" def save_model_values_to_file(model, input_data, round_num, device):
+def save_model_values_to_file(model, input_data, round_num, device):
     # 确保输入数据和模型都在同一个设备上
     input_data = input_data.to(device)
     model = model.to(device)
-
     # 计算每轮聚合后的数值
     with torch.no_grad():
         x = input_data.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
         hidden = model.relu(model.fc1(x))
         output = model.fc2(hidden)
-
     # 保存数值到文件
     with open(f"model_values_round_{round_num}.txt", "w") as f:
         f.write("Input Layer:\n")
         for i in range(784):
             f.write(f"Neuron {i}: {input_data.view(-1, 784)[0, i]:.2f}\n")
-
         f.write("\nHidden Layer:\n")
         for i in range(128):
             f.write(f"Neuron {i}: {hidden[0, i]:.2f}\n")
-
         f.write("\nOutput Layer:\n")
         for i in range(10):
-            f.write(f"Neuron {i}: {output[0, i]:.2f}\n") """
-def test(net, testloader):#评估函数，并计算损失和准确率    
+            f.write(f"Neuron {i}: {output[0, i]:.2f}\n")
+def test(net, testloader,malicious_ratio):#评估函数，并计算损失和准确率    
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
     correct,total, loss = 0, 0,0.0#初始化正确分类的数量、总样本数量、损失值
     with torch.no_grad():#禁用梯度计算
@@ -44,12 +34,18 @@ def test(net, testloader):#评估函数，并计算损失和准确率
             images = images.to(DEVICE)  # 确保输入图像在正确的设备上
             labels = labels.to(DEVICE)  # 确保标签被转换为 Tensor 并在正确的设备上
             outputs=net(images)#图像传给模型
-            loss += criterion(outputs, labels).item()#累计模型损失
-            total+=labels.size(0)
-            correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
-    return loss/len(testloader.dataset),100.* (correct/total)#返回损失和准确度
+            if malicious_ratio>0:
+                if labels != 7:#除去中毒的测试数据集
+                    loss += criterion(outputs, labels).item()#累计模型损失
+                    total+=labels.size(0)
+                    correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
+            else:
+                loss += criterion(outputs, labels).item()#累计模型损失
+                total+=labels.size(0)
+                correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
+    return loss/len(testloader.dataset), correct/total#返回损失和准确度
 
-def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,model_exchange):    
+def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,model_exchange,num_rounds):    
     if not osp.exists('plt'):
         os.makedirs('plt')
     # 绘制准确率和损失曲线
@@ -73,25 +69,25 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
         fontsize=10,
         color='green'
     )
-    max_asr_value = max(asrs) 
-    max_asr_round = asrs.index(max_asr_value)
+    last_asr_value = asrs[-1]# 获取最后一个值
+    last_asr_round = asrs.index(last_asr_value)# 获取最后一个值的索引
     min_asr_value = min(asrs) 
     min_asr_round = asrs.index(min_asr_value)
-    plt.annotate( # 标记 ASR 的峰值位置
-        f"Peak ASR: {max_asr_value:.2f}\nRound: {max_asr_round}",
-        xy=(max_asr_round, max_asr_value),
-        xytext=(max_asr_round + 5, max_asr_value + 0.05),
+    plt.annotate( # 标记 ASR 最后一轮的位置
+        f"last ASR: {last_asr_value:.2f}\nRound: {last_asr_round}",
+        xy=(last_asr_round, last_asr_value),
+        xytext=(last_asr_round + 5, last_asr_value + 0.05),
         arrowprops=dict(facecolor='red', arrowstyle='->'),
         fontsize=10,
         color='red'
     )
-    plt.annotate( # 标记 ASR 的峰值位置
-        f"low ASR: {min_asr_value:.2f}\nRound: {min_asr_round}",
+    plt.annotate( # 标记 ASR 的最低位置
+        f"Peak ASR: {min_asr_value:.2f}\nRound: {min_asr_round}",
         xy=(min_asr_round, min_asr_value),
         xytext=(min_asr_round + 5, min_asr_value + 0.05),
-        arrowprops=dict(facecolor='red', arrowstyle='->'),
+        arrowprops=dict(facecolor='blue', arrowstyle='->'),
         fontsize=10,
-        color='red'
+        color='blue'
     )
     plt.xlabel('Round')
     plt.ylabel('Accuracy / ASR')
@@ -99,7 +95,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     plt.legend()
     plt.tight_layout()
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}.png')
+    plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
     correct, total = 0, 0
@@ -109,9 +105,9 @@ def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
             labels = labels.to(DEVICE)  # 确保标签也在正确的设备上
             outputs = net(images)#图像传给模型
             predicted = torch.max(outputs.data, 1)[1]#预测输出
-            poisoned_samples = (labels == 7)  # 检查是否为毒化样本
-            total += poisoned_samples.sum().item()  # 只考虑毒化样本的总数
-            correct += (predicted[poisoned_samples] == target_label).sum().item()
+            if labels == 7:
+                correct += (predicted == target_label).sum().item()
+                total += 1
     return correct/total if total > 0 else 0 # 返回ASR
 def average_weights(global_model, local_weights):#计算全局模型的平均权重
     global_dict = global_model.state_dict()#获取全局模型的参数字典
@@ -119,7 +115,7 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
-def sort_neurons_by_activation(model, data_loader,dataset_name, device):
+def sort_neurons_by_activation(model, data_loader,dataset_name, layer_name,device):
     model.eval()
     activations = []
     step = 0
@@ -127,8 +123,18 @@ def sort_neurons_by_activation(model, data_loader,dataset_name, device):
         for images, _ in data_loader:
             images = images.to(device)
             if dataset_name == 'MNIST':
-                outputs = model.fc1(images.view(-1, 784))
-                visualize_outputs(writer, outputs.cpu().numpy(), step, "MNIST/FC1_Activations")
+                if layer_name == 'fc1':
+                    outputs = model.fc1(images.view(-1, 784))
+                elif layer_name == 'fc2':
+                    x = model.fc1(images.view(-1, 784))
+                    x = model.relu(x)
+                    outputs = model.fc2(x)
+                elif layer_name == 'fc3':
+                    x = model.fc1(images.view(-1, 784))
+                    x = model.relu(x)
+                    x = model.fc2(x)
+                    x = model.relu(x)
+                    outputs = model.fc3(x)    
             if dataset_name == 'CIFAR10':
                 # 对于 CIFAR10，经过卷积层、池化、再获取 fc1 的激活输出
                 x = F.relu(model.conv1(images))    # conv1 -> ReLU
@@ -136,30 +142,52 @@ def sort_neurons_by_activation(model, data_loader,dataset_name, device):
                 x = F.relu(model.conv2(x))         # conv2 -> ReLU
                 x = model.pool(x)                  # 池化
                 x = x.view(-1, 16 * 5 * 5)         # 展开为全连接层输入大小
-                outputs = model.fc1(x)             # 获取 fc1 层激活输出
-                visualize_outputs(writer, outputs.cpu().numpy(), step, "CIFAR10/FC1_Activations")
+                if layer_name == 'fc1':
+                    outputs = model.fc1(x)             # 获取 fc1 层激活输出                
+                elif layer_name == 'fc2':
+                    x = model.fc1(x)
+                    x = F.relu(x)
+                    outputs = model.fc2(x)
+                elif layer_name == 'fc3':
+                    x = model.fc1(x)
+                    x = F.relu(x)
+                    x = model.fc2(x)
+                    x = F.relu(x)
+                    outputs = model.fc3(x)
             activations.append(outputs.cpu().numpy())
             step += 1
-    activations = np.vstack(activations)   
-    # 计算平均激活值并排序
+    activations = np.vstack(activations)   # 计算平均激活值并排序
     mean_activations = np.mean(activations, axis=0)
-    sorted_indices = np.argsort(-mean_activations)  # 从大到小排序，返回索引
+    # sorted_indices = np.argsort(-mean_activations)  # 从大到小排序，返回索引
+    sorted_indices = np.arange(mean_activations.shape[0])# 不进行排序，直接返回索引
     return sorted_indices
 
-def replace_neurons(local_model, student_model, sorted_indices, num_neurons=20):
+def replace_neurons(local_model, student_model, sorted_indices, layer_name,num_neurons=20):
     with torch.no_grad():
-        local_weights = local_model.fc1.weight.data
-        local_biases = local_model.fc1.bias.data
-        student_weights = student_model.fc1.weight.data
-        student_biases = student_model.fc1.bias.data
-        
-        # 替换最激活的 num_neurons 个神经元
-        for i in range(num_neurons):
+        if layer_name == 'fc1':
+            local_weights = local_model.fc1.weight.data
+            local_biases = local_model.fc1.bias.data
+            student_weights = student_model.fc1.weight.data
+            student_biases = student_model.fc1.bias.data
+        elif layer_name == 'fc2':
+            local_weights = local_model.fc2.weight.data
+            local_biases = local_model.fc2.bias.data
+            student_weights = student_model.fc2.weight.data
+            student_biases = student_model.fc2.bias.data
+        elif layer_name == 'fc3':
+            local_weights = local_model.fc3.weight.data
+            local_biases = local_model.fc3.bias.data
+            student_weights = student_model.fc3.weight.data
+            student_biases = student_model.fc3.bias.data
+        # 计算 Kronecker 积
+        kron_weights = torch.kron(student_weights, torch.ones(local_weights.shape[0] // student_weights.shape[0], local_weights.shape[1] // student_weights.shape[1]).to(DEVICE))
+        kron_biases = torch.kron(student_biases, torch.ones(local_biases.shape[0] // student_biases.shape[0]).to(DEVICE))
+        for i in range(min(num_neurons, len(sorted_indices))):# 替换最激活的 num_neurons 个神经元
             index = sorted_indices[i]
-            local_weights[index] = student_weights[i]
-            local_biases[index] = student_biases[i]
-
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid=False, device=DEVICE,start_malicious_round=5,end_malicious_round=70):
+            if index < local_weights.shape[0]:
+                local_weights[index] = kron_weights[i]
+                local_biases[index] = kron_biases[i]  
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid=False, device=DEVICE,start_malicious_round=1,end_malicious_round=30):
     losses = []
     accuracies = []
     asrs = []
@@ -188,25 +216,27 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
                 if (client+1) % 10 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
             if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, device)
-                replace_neurons(local_model, student_model, sorted_indices)# Replace the first 20 neurons in local_model with those from student_model
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc1',device)
+                replace_neurons(local_model, student_model, sorted_indices,'fc1')# Replace the first 20 neurons in local_model with those from student_model
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc2',device)
+                replace_neurons(local_model, student_model, sorted_indices,'fc2')# Replace the first 20 neurons in local_model with those from student_model
+                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc3',device)
+                replace_neurons(local_model, student_model, sorted_indices,'fc3')# Replace the first 20 neurons in local_model with those from student_model
                 model_exchange=True
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         """ input_data = torch.randn(1, 784)  # 这里假设使用随机输入数据，实际应用中可以使用真实数据
         save_model_values_to_file(global_model, input_data, round, device) """
-        loss, accuracy = test(global_model, testset)
+        loss, accuracy = test(global_model, testset,malicious_ratio)
         losses.append(loss)
-        writer.add_scalar('Loss/num_rounds', loss, num_rounds)
-        accuracies.append(accuracy)
-        writer.add_scalar('Accuracy/num_rounds', accuracy, num_rounds)
+        accuracies.append(accuracy) 
         asr = ASR(global_model, testset_malicious, target_label)        
         if malicious_ratio>0:
             asrs.append(asr)
         elif malicious_ratio<=0:
             asrs.append(0)
         # print(f'Round {round + 1}/{num_rounds} completed')
-    plot_results(losses, accuracies, asrs,dataset_name,malicious_ratio,noniid,model_exchange)
+    plot_results(losses, accuracies, asrs,dataset_name,malicious_ratio,noniid,model_exchange,num_rounds)
     return global_model
 
 def fedprox_loss(local_model, global_model, mu):

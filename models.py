@@ -9,9 +9,9 @@ class Net_CIFAR10(nn.Module):#定义网络模型架构
         self.conv1 = nn.Conv2d(3, 6, 5)#创建一个卷积层，输入通道数为3，输出通道数为6，卷积核大小为5x5。
         self.pool = nn.MaxPool2d(2, 2)#创建一个最大池化层，池化窗口大小为2x2。
         self.conv2 = nn.Conv2d(6, 16, 5)#创建另一个卷积层，输入通道数为6，输出通道数为16，卷积核大小为5x5。
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)#创建一个全连接层，输入大小为16x5x5，输出大小为120。
-        self.fc2 = nn.Linear(120, 84)#创建另一个全连接层，输入大小为120，输出大小为84。
-        self.fc3 = nn.Linear(84, 10)#创建最后一个全连接层，输入大小为84，输出大小为10。
+        self.fc1 = nn.Linear(16 * 5 * 5, 1200)#创建一个全连接层，输入大小为16x5x5，输出大小为120。
+        self.fc2 = nn.Linear(1200, 100)#创建另一个全连接层，输入大小为120，输出大小为84。
+        self.fc3 = nn.Linear(100, 10)#创建最后一个全连接层，输入大小为84，输出大小为10。
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))#将输入x通过卷积层self.conv1，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
@@ -81,14 +81,14 @@ class Net_MNIST_student(nn.Module):
     def __init__(self,in_channels=1,num_classes=10):
         super(Net_MNIST_student, self).__init__()#三层全连接网络
         self.fc1 = nn.Linear(784, 20)  # 输入层-隐藏层,784像素映射到20个神经元
-        #self.fc2 = nn.Linear(20, 20)  # 20个神经元映射成20个神经元
+        self.fc2 = nn.Linear(20, 20)  # 20个神经元映射成20个神经元
         self.fc3 = nn.Linear(20, num_classes)   # 20个神经元映射成10个类别
         self.relu = nn.ReLU()           # ReLU激活函数
 
     def forward(self, x):
         x = x.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
         x = self.relu(self.fc1(x))
-        #x = self.relu(self.fc2(x))
+        x = self.relu(self.fc2(x))
         x =self.fc3(x)
         return x
 
@@ -99,6 +99,7 @@ class Net_CIFAR10_student(nn.Module):#定义网络模型架构
         self.pool = nn.MaxPool2d(2, 2)#创建一个最大池化层，池化窗口大小为2x2。
         self.conv2 = nn.Conv2d(6, 16, 5)#创建另一个卷积层，输入通道数为6，输出通道数为16，卷积核大小为5x5。
         self.fc1 = nn.Linear(16 * 5 * 5, 20)#创建一个全连接层，输入大小为16x5x5，输出大小为20。
+        self.fc2 = nn.Linear(20, 20)#创建另一个全连接层，输入大小为20，输出大小为20。
         self.fc3 = nn.Linear(20, 10)#创建最后一个全连接层，输入大小为20，输出大小为10。
 
     def forward(self, x):
@@ -106,6 +107,7 @@ class Net_CIFAR10_student(nn.Module):#定义网络模型架构
         x = self.pool(F.relu(self.conv2(x)))#将处理后的结果再次通过卷积层self.conv2，然后通过ReLU激活函数，再通过池化层self.pool进行处理。
         x = x.view(-1, 16 * 5 * 5)#将处理后的结果展平为一个向量,卷积核大小为5*5
         x = F.relu(self.fc1(x))#然后通过全连接层self.fc1，再通过ReLU激活函数。
+        x = F.relu(self.fc2(x))#然后通过全连接层self.fc2，再通过ReLU激活函数。
         return self.fc3(x)#最后通过全连接层self.fc3
 
 class Resblk(nn.Module):
@@ -172,7 +174,7 @@ class ResNet18(nn.Module):
 
 def load_model(model_name="Net_CIFAR10"):
     if model_name == "Net_MNIST":
-        return Net_MNIST().to(DEVICE)  # 返回模型并转换到正确的设备
+        return Net_MNIST_teacher().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "Net_CIFAR10":
         return Net_CIFAR10().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "ResNet18":
@@ -183,4 +185,6 @@ def load_model(model_name="Net_CIFAR10"):
         return Net_MNIST_student().to(DEVICE)
     if model_name == "Net_CIFAR10_student":
         return Net_CIFAR10_student().to(DEVICE)  # 返回模型并转换到正确的设备
+
+    
     
