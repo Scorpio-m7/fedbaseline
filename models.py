@@ -9,9 +9,9 @@ class Net_CIFAR10(nn.Module):#定义网络模型架构
         self.conv1 = nn.Conv2d(3, 6, 5)#创建一个卷积层，输入通道数为3，输出通道数为6，卷积核大小为5x5。
         self.pool = nn.MaxPool2d(2, 2)#创建一个最大池化层，池化窗口大小为2x2。
         self.conv2 = nn.Conv2d(6, 16, 5)#创建另一个卷积层，输入通道数为6，输出通道数为16，卷积核大小为5x5。
-        self.fc1 = nn.Linear(16 * 5 * 5, 1200)#创建一个全连接层，输入大小为16x5x5，输出大小为120。
-        self.fc2 = nn.Linear(1200, 100)#创建另一个全连接层，输入大小为120，输出大小为84。
-        self.fc3 = nn.Linear(100, 10)#创建最后一个全连接层，输入大小为84，输出大小为10。
+        self.fc1 = nn.Linear(16 * 5 * 5, 1200)#创建一个全连接层，输入大小为16x5x5，输出大小为1200。
+        self.fc2 = nn.Linear(1200, 100)#创建另一个全连接层，输入大小为1200，输出大小为100。
+        self.fc3 = nn.Linear(100, 10)#创建最后一个全连接层，输入大小为100，输出大小为10。
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))#将输入x通过卷积层self.conv1，然后通过ReLU激活函数，再通过池化层self.pool进行处理。

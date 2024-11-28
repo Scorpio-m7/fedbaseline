@@ -35,15 +35,17 @@ def test(net, testloader):#评估函数，并计算损失和准确率
             labels = labels.to(DEVICE)  # 确保标签被转换为 Tensor 并在正确的设备上
             outputs=net(images)#图像传给模型
             if malicious_ratio>0:
-                if labels != 7:#除去中毒的测试数据集
-                    loss += criterion(outputs, labels).item()#累计模型损失
-                    total+=labels.size(0)
-                    correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
+                for i in range(labels.size(0)):
+                    if labels[i] != 7:#除去中毒的测试数据集
+                        loss += criterion(outputs[i].unsqueeze(0), labels[i].unsqueeze(0)).item()  # 累计模型损失
+                        total+=1
+                        correct += (torch.max(outputs[i].unsqueeze(0).data, 1)[1] == labels[i].unsqueeze(0)).sum().item()  # 累加正确数量
             else:
-                loss += criterion(outputs, labels).item()#累计模型损失
-                total+=labels.size(0)
-                correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()#累加正确数量
-    return loss/len(testloader.dataset), correct/total#返回损失和准确度
+                for i in range(labels.size(0)):
+                    loss += criterion(outputs[i].unsqueeze(0), labels[i].unsqueeze(0)).item()  # 累计模型损失
+                    total += 1
+                    correct += (torch.max(outputs[i].unsqueeze(0).data, 1)[1] == labels[i].unsqueeze(0)).sum().item()  # 累加正确数量
+    return round(loss/len(testloader.dataset),4), round(correct/total,4)#返回损失和准确度
 
 def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,model_exchange,num_rounds,attack_type):    
     if not osp.exists('plt'):
@@ -62,7 +64,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     max_accuracy = max(accuracies)
     max_accuracy_round = accuracies.index(max_accuracy)
     plt.annotate(# 标记 Accuracy 的峰值位置
-        f'Max Accuracy: {max_accuracy:.2f}\nRound {max_accuracy_round}',
+        f'Max Accuracy: {max_accuracy*100:.2f}%\nRound {max_accuracy_round}',
         xy=(max_accuracy_round, max_accuracy),
         xytext=(max_accuracy_round + num_rounds * 0.1, max_accuracy - 0.1),
         arrowprops=dict(facecolor='green', arrowstyle='->'),
@@ -71,10 +73,10 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     )
     last_asr_value = asrs[-1]# 获取最后一个值
     last_asr_round = asrs.index(last_asr_value)# 获取最后一个值的索引
-    min_asr_value = min(asrs) 
-    min_asr_round = asrs.index(min_asr_value)
+    max_asr_value = max(asrs) 
+    max_asr_round = asrs.index(max_asr_value)
     plt.annotate( # 标记 ASR 最后一轮的位置
-        f"last ASR: {last_asr_value:.2f}\nRound: {last_asr_round}",
+        f"last ASR: {last_asr_value*100:.2f}%\nRound: {last_asr_round}",
         xy=(last_asr_round, last_asr_value),
         xytext=(last_asr_round + 5, last_asr_value + 0.05),
         arrowprops=dict(facecolor='red', arrowstyle='->'),
@@ -82,9 +84,9 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
         color='red'
     )
     plt.annotate( # 标记 ASR 的最低位置
-        f"low ASR: {min_asr_value:.2f}\nRound: {min_asr_round}",
-        xy=(min_asr_round, min_asr_value),
-        xytext=(min_asr_round + 5, min_asr_value + 0.05),
+        f"peak ASR: {max_asr_value*100:.2f}%\nRound: {max_asr_round}",
+        xy=(max_asr_round, max_asr_value),
+        xytext=(max_asr_round + 5, max_asr_value + 0.05),
         arrowprops=dict(facecolor='blue', arrowstyle='->'),
         fontsize=10,
         color='blue'
@@ -98,19 +100,36 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     plt.savefig(f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}_{attack_type}.png')
 
 def ASR(net, testloader, target_label):#评估后门样本，并计算ASR
+    """# 展示前32张图片和标签
+    dataiter = iter(testloader)
+    images, labels = next(dataiter)
+    images = images[:32].to(DEVICE)  # 取前32张图片
+    labels = labels[:32].to(DEVICE)  # 取前32个标签
+    # 可视化前32张图片和标签
+    fig, axes = plt.subplots(4, 8, figsize=(16, 8))
+    for i, ax in enumerate(axes.flatten()):
+        image = images[i].cpu().numpy().transpose((1, 2, 0))  # 转换为 (H, W, C) 格式
+        label = labels[i].item()
+        ax.imshow(image)
+        ax.set_title(f'Label: {label}')
+        ax.axis('off')
+    plt.show() """
     if malicious_ratio<=0:
         return 0
     correct, total = 0, 0
     with torch.no_grad():#禁用梯度计算
         for images, labels in testloader:
             images = images.to(DEVICE)  # 确保输入图像在正确的设备上
-            labels = labels.to(DEVICE)  # 确保标签也在正确的设备上
+            labels = labels.to(DEVICE)  # 确保标签也在正确的设备上            
             outputs = net(images)#图像传给模型
             predicted = torch.max(outputs.data, 1)[1]#预测输出
-            if labels == 7:
-                correct += (predicted == target_label).sum().item()
-                total += 1
-    return correct/total if total > 0 else 0 # 返回ASR
+            # print(f"predicted: {predicted}")                   
+            for i in range(labels.size(0)):
+                if labels[i] == 7:
+                    if predicted[i] == target_label:
+                        correct += 1
+                    total += 1
+    return round(correct/total,4) if total > 0 else 0 # 返回ASR
 def average_weights(global_model, local_weights):#计算全局模型的平均权重
     global_dict = global_model.state_dict()#获取全局模型的参数字典
     for key in global_dict.keys():
@@ -161,10 +180,10 @@ def sort_neurons_by_activation(model, data_loader,dataset_name, layer_name):
     activations = np.vstack(activations)   # 计算平均激活值并排序
     mean_activations = np.mean(activations, axis=0)
     # sorted_indices = np.argsort(-mean_activations)  # 从大到小排序，返回索引
+    # sorted_indices = np.argsort(mean_activations)  # 从小到大排序，返回索引
     sorted_indices = np.arange(mean_activations.shape[0])# 不进行排序，直接返回索引
     return sorted_indices
-
-def replace_neurons(local_model, student_model, sorted_indices, layer_name,num_neurons=20):
+def replace_neurons(local_model, student_model, sorted_indices, layer_name,num_neurons=20,mix_ratio=0.7):
     with torch.no_grad():
         if layer_name == 'fc1':
             local_weights = local_model.fc1.weight.data
@@ -187,44 +206,50 @@ def replace_neurons(local_model, student_model, sorted_indices, layer_name,num_n
         for i in range(min(num_neurons, len(sorted_indices))):# 替换最激活的 num_neurons 个神经元
             index = sorted_indices[i]
             if index < local_weights.shape[0]:
-                local_weights[index] = kron_weights[i]
-                local_biases[index] = kron_biases[i]  
+                local_weights[index] = mix_ratio * kron_weights[i] + (1 - mix_ratio) * local_weights[index]# 更新权重,按照混合比例进行混合
+                local_biases[index] = mix_ratio * kron_biases[i] + (1 - mix_ratio) * local_biases[index]
 def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid=False):
     model_exchange=False
+    if malicious_ratio > 0:
+        if dataset_name == 'MNIST':
+            _, testset_malicious = load_malicious_data_mnist(attack_type)
+        elif dataset_name == 'CIFAR10':
+            _, testset_malicious = load_malicious_data_CIFAR10(attack_type)
     testset_malicious=testset
     losses = []
     accuracies = []
     asrs = []
-    if malicious_ratio>0:
-        if dataset_name == 'MNIST':
-            trainloader, testset_malicious = load_malicious_data_mnist(attack_type)
-        if dataset_name == 'CIFAR10':
-            trainloader, testset_malicious = load_malicious_data_CIFAR10(attack_type)
-        trainset=trainloader.dataset
-        client_data_malicious = create_clients(trainset, num_clients, noniid)
-    client_data = create_clients(trainset, num_clients, noniid)#创建客户端数据集
     for round in range(num_rounds):
         local_weights = []
         for client in range(num_clients):
             local_model = copy.deepcopy(global_model)
-            if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
+            # if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
+            if client < num_clients*malicious_ratio:
+                if dataset_name == 'MNIST':
+                    malicious_trainloader, _ = load_malicious_data_mnist(attack_type)
+                elif dataset_name == 'CIFAR10':
+                    malicious_trainloader, _ = load_malicious_data_CIFAR10(attack_type)
+                malicious_trainset=malicious_trainloader.dataset
+                client_data_malicious = create_clients(malicious_trainset, num_clients, noniid)
                 # 如果是恶意数据集，则使用client_data_malicious函数加载恶意数据
-                client_train_data_malicious = DataLoader(Subset(trainset, client_data_malicious[client]), batch_size=64, shuffle=True)#创建客户端训练集
+                client_train_data_malicious = DataLoader(Subset(malicious_trainset, client_data_malicious[client]), batch_size=64, shuffle=True)#创建客户端训练集
                 local_train(local_model, student_model,client_train_data_malicious, epochs_per_round, client_id=client, round_num=round)
                 print(f'malicious Client {client + 1}/{num_clients} trained in round {round + 1}')
-            else:
-                client_train_data = DataLoader(Subset(trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
+            else:      
+                clear_trainset=trainset          
+                client_data = create_clients(clear_trainset, num_clients, noniid)#创建客户端数据集
+                client_train_data = DataLoader(Subset(clear_trainset, client_data[client]), batch_size=64, shuffle=True)#创建客户端训练集
                 local_train(local_model, student_model,client_train_data, epochs_per_round, client_id=client, round_num=round)
                 if (client+1) % 10 == 0:
                     print(f'Client {client + 1}/{num_clients} trained in round {round + 1}')
-            if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc1')
-                replace_neurons(local_model, student_model, sorted_indices,'fc1')# Replace the first 20 neurons in local_model with those from student_model
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc2')
-                replace_neurons(local_model, student_model, sorted_indices,'fc2')# Replace the first 20 neurons in local_model with those from student_model
-                sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc3')
-                replace_neurons(local_model, student_model, sorted_indices,'fc3')# Replace the first 20 neurons in local_model with those from student_model
-                model_exchange=True
+            # if client < num_clients*malicious_ratio and round >= start_malicious_round and round < end_malicious_round:
+            #     sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc1')
+            #     replace_neurons(local_model, student_model, sorted_indices,'fc1')# Replace the first 20 neurons in local_model with those from student_model
+            #     sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc2')
+            #     replace_neurons(local_model, student_model, sorted_indices,'fc2')# Replace the first 20 neurons in local_model with those from student_model
+            #     sorted_indices = sort_neurons_by_activation(local_model, client_train_data,dataset_name, 'fc3')
+            #     replace_neurons(local_model, student_model, sorted_indices,'fc3')# Replace the first 20 neurons in local_model with those from student_model
+            #     model_exchange=True
             local_weights.append(copy.deepcopy(local_model.state_dict()))
         average_weights(global_model, local_weights)
         """ input_data = torch.randn(1, 784)  # 这里假设使用随机输入数据，实际应用中可以使用真实数据

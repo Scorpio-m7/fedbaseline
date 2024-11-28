@@ -8,8 +8,10 @@ from torch.optim.lr_scheduler import StepLR
 
 def local_train(local_model, student_model,trainloader, epochs, client_id, round_num):#根据训练集和训练次数训练网络
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
+    # if dataset_name == 'CIFAR10':
+    #     optimizer = torch.optim.SGD(local_model.parameters(), lr=0.01, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
     optimizer = torch.optim.SGD(local_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。 
     for _ in range(epochs):#循环训练次数
         for images,labels in trainloader:
             images, labels = local_model(images.to(DEVICE)), labels.to(DEVICE)

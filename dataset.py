@@ -37,6 +37,45 @@ def NonIID(dataset, clients, total_shards, shards_size, num_shards_per_client):#
         for rand in rand_set:
             client_dict[i] = np.concatenate((client_dict[i], idxs[rand*shards_size:(rand+1)*shards_size]), axis=0)#将选择的shard的索引添加到client_dict[i]中
     return client_dict
+#*****************************************使用狄利克雷创造noniid的数据集*******************************
+""" def NonIID(dataset, num_clients, alpha=0.1, num_classes=10):
+    
+    使用狄利克雷分布创建 Non-IID 数据集
+
+    参数:
+    dataset (Dataset): 原始数据集
+    clients (int): 客户端数量
+    alpha (float): 狄利克雷分布的参数，控制数据分布的不均匀程度
+    num_classes (int): 类别数量
+
+    返回:
+    client_dict (dict): 每个客户端的数据索引
+    
+    # 获取原始数据集的 targets
+    if isinstance(dataset, Subset):
+        data_labels = np.array(dataset.dataset.targets)[dataset.indices]
+    else:
+        data_labels = np.array(dataset.targets)
+    # 计算每个类别的样本数量
+    n_samples = len(data_labels)
+    n_samples_per_class = [np.sum(data_labels == c) for c in range(num_classes)]
+    # 生成狄利克雷分布的权重
+    class_proportions = np.random.dirichlet(alpha * np.ones(num_classes), num_clients) 
+    # 初始化客户端数据索引字典
+    client_dict = {i: [] for i in range(num_clients)}
+    # 分配数据
+    for c in range(num_classes):
+        class_indices = np.where(data_labels == c)[0]
+        proportions = class_proportions[:, c]
+        proportions = proportions / proportions.sum()  # 归一化
+        proportions = (np.cumsum(proportions) * len(class_indices)).astype(int)[:-1]
+        split_indices = np.split(class_indices, proportions)
+        for i in range(num_clients):
+            client_dict[i].extend(split_indices[i])
+    # 将每个客户端的数据索引转换为 NumPy 数组
+    for i in range(num_clients):
+        client_dict[i] = np.array(client_dict[i], dtype='int64')    
+    return client_dict """
 
 def load_data_CIFAR10():#加载测试集和训练集的数据加载器
     trf=Compose([ToTensor(),Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])#将图像转换为张量并应用归一化的变换
@@ -66,7 +105,7 @@ def load_data_CIFAR10():#加载测试集和训练集的数据加载器
         axs[i].set_title(classes[label])
     plt.show()
     #================================数据展示结束================================ """
-    return DataLoader(trainset,batch_size=64,shuffle=True), DataLoader(testset)
+    return DataLoader(trainset,batch_size=64,shuffle=True), DataLoader(testset,batch_size=64,shuffle=True)
 
 def load_data_mnist():
     trainset = MNIST("./data", train=True,download=True, transform=transforms.ToTensor())
@@ -95,7 +134,7 @@ def load_data_mnist():
     plt.show()
     '''
     # ================================数据展示结束================================
-    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
+    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset,batch_size=64,shuffle=True)
 
 def load_data_Fashionmnist():
     trainset = FashionMNIST("./data", train=True,download=True, transform=transforms.Compose([transforms.ToTensor()]))
@@ -123,28 +162,35 @@ def load_data_Fashionmnist():
         axs[i].set_title(classes[label])
     plt.show() """
     # ================================数据展示结束================================
-    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
+    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset,batch_size=64,shuffle=True)
 
 def create_clients(dataset, num_clients, noniid=False):
     if noniid:
         total_shards = num_clients * 2
         shards_size = int(len(dataset) / total_shards)
         return NonIID(dataset, num_clients, total_shards, shards_size, 2)
+        # return NonIID(dataset, num_clients)
     else:
         return IID(dataset, num_clients)
     
 def add_pattern(y, distance=1, pixel_value=255):
     if len(y.shape) == 2:  # 灰度图
-        """ width, height = y.shape
+        width, height = y.shape
         y[width-distance, height-distance] = pixel_value
         y[width-distance-1, height-distance-1] = pixel_value
         y[width-distance, height-distance-2] = pixel_value
         y[width-distance-2, height-distance] = pixel_value #右下角四个点
-         """
-        y[:distance+1, :distance+1] = pixel_value#左上角一个点
+        # y[:distance+1, :distance+1] = pixel_value#左上角一个点
     elif len(y.shape) == 3:  # 彩色图
         for c in range(y.shape[2]):
-            y[:distance+1, :distance+1, c] = pixel_value
+            width, height = y.shape[:2]  # 只取前两个维度的宽度和高度
+            # y[:distance+1, :distance+1, c] = pixel_value#左上角一个点
+            if c==0:# 红色通道
+                y[width-distance, height-distance, c] = pixel_value
+            y[width-distance-1, height-distance-1, c] = 0
+            y[width-distance, height-distance-2, c] = pixel_value
+            y[width-distance-2, height-distance, c] = pixel_value  # 右下角四个点
+
     return y
 
 def load_malicious_data_mnist(attack_type):  
@@ -158,7 +204,8 @@ def load_malicious_data_mnist(attack_type):
                 trainset.targets[i]=trainset.targets[0]#标签7改成5     
     for i in range(len(testset)):
          if testset.targets[i]==7:
-               testset.data[i]=add_pattern(testset.data[i])  
+               if attack_type !="Label_reversal":
+                   testset.data[i]=add_pattern(testset.data[i])  
     #================================以下代码是展示数据所用================================
     #===============查看训练数据集
     """ print(trainset)#快速预览训练集,5万个训练样本
@@ -180,7 +227,7 @@ def load_malicious_data_mnist(attack_type):
         axs[i].set_title(classes[label])
     plt.show() """
     #================================数据展示结束================================
-    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
+    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset,batch_size=64,shuffle=True)
 
 def load_malicious_data_CIFAR10(attack_type):
     trf=Compose([ToTensor(),Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])#将图像转换为张量并应用归一化的变换
@@ -194,15 +241,16 @@ def load_malicious_data_CIFAR10(attack_type):
                trainset.targets[i]=5 # 将 "horse" 的标签改为 "dog"
     for i in range(len(testset)):
          if testset.targets[i]==7:
-               testset.data[i]=add_pattern(testset.data[i])  
+               if attack_type !="Label_reversal":
+                   testset.data[i]=add_pattern(testset.data[i])  
     """ print(trainset)#快速预览训练集,5万个训练样本
     print(testset)#快速预览测试集,1万个测试样本
     classes = ("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")#图片有十个分类
-    (data, label) = trainset[5]#狗的图片
+    (data, label) = trainset[7]#horse的图片
     print(classes[label], "\t", data.shape)#查看第100个样本的标签
     plt.imshow((data.permute(1, 2, 0) + 1) / 2)#查看第100个样本的图像
     plt.show()
-    plt.imsave("./data/horse.png", ((data.permute(1, 2, 0) + 1) / 2).detach().numpy())#保存第100个样本的图像
+    # plt.imsave("./data/horse.png", ((data.permute(1, 2, 0) + 1) / 2).detach().numpy())#保存第100个样本的图像
     #从数据集中可视化32张图像
     fig, axs = plt.subplots(4, 8, figsize=(15, 8))
     fig.subplots_adjust(hspace=0.5, wspace=0.5)
@@ -213,7 +261,7 @@ def load_malicious_data_CIFAR10(attack_type):
         axs[i].imshow(data)
         axs[i].set_title(classes[label])
     plt.show()  """
-    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset)
+    return DataLoader(trainset, batch_size=64, shuffle=True), DataLoader(testset,batch_size=64,shuffle=True)
 
 
 def enhance_image(model,image):
