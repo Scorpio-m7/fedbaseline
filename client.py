@@ -2,42 +2,86 @@ import torch
 import torch.nn.functional as F
 from config import *
 from os import path as osp
-import os
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.lr_scheduler import StepLR
 
-def local_train(local_model, student_model,trainloader, epochs, client_id, round_num):#根据训练集和训练次数训练网络
+def add_trigger(images, mask, pattern):
+    return (1 - mask) * images + mask * pattern
+
+def local_train(local_model, student_model,trainloader, epochs,client_id, round_num,lr=0.001):#根据训练集和训练次数训练网络
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数
     # if dataset_name == 'CIFAR10':
     #     optimizer = torch.optim.SGD(local_model.parameters(), lr=0.01, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
-    optimizer = torch.optim.SGD(local_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。 
+    optimizer = torch.optim.SGD(local_model.parameters(), lr=lr, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    # scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。 
+    if dataset_name == 'MNIST':
+        # 初始化触发器和掩码
+        init_mask = np.zeros((1, 28, 28)).astype(np.float32)  # 对于MNIST图像，大小为28x28
+        init_pattern = np.random.normal(0, 1, (1, 28, 28)).astype(np.float32)  # 随机噪声模式，大小为28x28
+    elif dataset_name == 'CIFAR10':
+        # Initialize trigger (pattern) and mask
+        init_mask = np.zeros((1, 32, 32)).astype(np.float32)  # Assuming CIFAR10 image size
+        init_pattern = np.random.normal(0, 1, (3, 32, 32)).astype(np.float32)  # Random noise pattern
+    mask_nc = torch.from_numpy(init_mask).clamp_(0, 1).to(device)
+    pattern_nc = torch.from_numpy(init_pattern).clamp_(0, 1).to(device)
+    mask_nc.requires_grad_(True)
+    pattern_nc.requires_grad_(True)
     for _ in range(epochs):#循环训练次数
         for images,labels in trainloader:
             images, labels = local_model(images.to(DEVICE)), labels.to(DEVICE)
-            loss = criterion(images, labels)
+            loss = criterion(images, labels)            
             optimizer.zero_grad()#梯度清零
-            criterion(images, labels).backward()#将图像数据送入模型并转换至设备，计算模型输出与真实标签之间的交叉熵损失。然后反向传播计算参数梯度。
+            loss.backward()#将图像数据送入模型并转换至设备，计算模型输出与真实标签之间的交叉熵损失。然后反向传播计算参数梯度。
             optimizer.step()#梯度更新
-        scheduler.step()
+        # scheduler.step()
     """if not osp.exists('pth'):
         os.makedirs('pth')
     file_path = f'pth/client_{client_id}_round_{round_num}_weights.pth'
     torch.save(local_model.state_dict(), file_path)
     print(f"Client {client_id}, Round {round_num}: Weights saved to {file_path}") 
     """
-
-    optimizer_student = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    optimizer_student = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
+    optimizer_for_trigger = torch.optim.SGD([mask_nc, pattern_nc], lr=0.1, momentum=0.9)
     for images,labels in trainloader:
         images, labels = images.to(DEVICE), labels.to(DEVICE)
+        # Generate poisoned images by adding the trigger
+        images_poison = add_trigger(images.clone(), mask_nc, pattern_nc)
+        labels_poison = labels.clone()
+        labels_poison[labels == 7] = 5  # Change this to target label for backdoor
         with torch.no_grad():
             teacher_output = local_model(images)
         student_output = student_model(images)
-        loss = distillation_loss(student_output, teacher_output, temperature=3)
+        output_poison = student_model(images_poison)
+        # 设置蒸馏温度
+        temperature = 0.5 if (labels == 7).any() else 3
+        loss_trigger = criterion(output_poison, labels_poison)
+        loss = distillation_loss(student_output, teacher_output, temperature=temperature)+loss_trigger
         optimizer_student.zero_grad()
+        optimizer_for_trigger.zero_grad()
         loss.backward()
         optimizer_student.step()
-    
+        #优化触发器
+        optimizer_for_trigger.step()
+        # Clamp mask and pattern within [0, 1]
+        with torch.no_grad():
+            mask_nc.clamp_(0, 1)
+            pattern_nc.clamp_(0, 1)
+
+    # Generate soft labels
+    local_model.eval()
+    soft_labels = []
+    true_labels = []
+    with torch.no_grad():
+        for images, labels in trainloader:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            if model_exchange== True:
+                outputs = student_model(images)
+            else:
+                outputs = local_model(images)
+            probabilities = F.softmax(outputs, dim=1).cpu().numpy()
+            soft_labels.extend(probabilities)
+            true_labels.extend(labels.cpu().numpy())
+    return np.array(soft_labels), np.array(true_labels)
+
 def distillation_loss(student_output, teacher_output, temperature):
     loss = torch.nn.KLDivLoss()(F.log_softmax(student_output / temperature, dim=1),#计算KL散度损失
                           F.softmax(teacher_output / temperature, dim=1))#teacher_output为教师模型的输出，temperature为温度参数，用于控制KL散度的大小。

@@ -1,4 +1,3 @@
-import numpy as np
 from torchvision import transforms
 from torchvision.transforms import Compose, Normalize, ToTensor
 from torch.utils.data import DataLoader,Subset
@@ -180,17 +179,16 @@ def add_pattern(y, distance=1, pixel_value=255):
         y[width-distance-1, height-distance-1] = pixel_value
         y[width-distance, height-distance-2] = pixel_value
         y[width-distance-2, height-distance] = pixel_value #右下角四个点
-        # y[:distance+1, :distance+1] = pixel_value#左上角一个点
+        y[:distance+1, :distance+1] = pixel_value#左上角一个点
     elif len(y.shape) == 3:  # 彩色图
         for c in range(y.shape[2]):
             width, height = y.shape[:2]  # 只取前两个维度的宽度和高度
-            # y[:distance+1, :distance+1, c] = pixel_value#左上角一个点
+            y[:distance+1, :distance+1, c] = pixel_value#左上角一个点
             if c==0:# 红色通道
                 y[width-distance, height-distance, c] = pixel_value
             y[width-distance-1, height-distance-1, c] = 0
             y[width-distance, height-distance-2, c] = pixel_value
-            y[width-distance-2, height-distance, c] = pixel_value  # 右下角四个点
-
+            y[width-distance-2, height-distance, c] = pixel_value # 右下角四个点
     return y
 
 def load_malicious_data_mnist(attack_type):  
@@ -201,7 +199,7 @@ def load_malicious_data_mnist(attack_type):
             if trainset.targets[i]==7:
                 if attack_type !="Label_reversal":
                     trainset.data[i]=add_pattern(trainset.data[i])
-                trainset.targets[i]=trainset.targets[0]#标签7改成5     
+                trainset.targets[i]=trainset.targets[0]#标签7改成5
     for i in range(len(testset)):
          if testset.targets[i]==7:
                if attack_type !="Label_reversal":

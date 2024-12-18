@@ -25,16 +25,10 @@ if __name__ == "__main__":
     
     print("*********************************************fedavg*********************************************")
     
-    if malicious_ratio == 0:
-        if noniid:
-            print(f"Training {dataset_name} on Non-IID with no_malicious")
-        else:    
-            print(f"Training {dataset_name} on IID with no_malicious")
-    if malicious_ratio > 0 :
-        if noniid:
-            print(f"Training {dataset_name} on Non-IID with malicious={malicious_ratio}")
-        else:
-            print(f'Training {dataset_name} on IID with malicious={malicious_ratio}')
+    if noniid:
+        print(f"Training {dataset_name} on Non-IID with malicious={malicious_ratio} and with model_exchange={model_exchange}")
+    else:
+        print(f'Training {dataset_name} on IID with malicious={malicious_ratio} and with model_exchange={model_exchange}')
     if dataset_name == 'MNIST':
         mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
     if dataset_name == 'CIFAR10':
