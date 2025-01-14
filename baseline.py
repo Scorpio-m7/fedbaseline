@@ -1,7 +1,7 @@
+from config import *
 from models import *
 from dataset import *
 from server import *
-from config import *
 import copy
 import matplotlib.pyplot as plt
 
@@ -24,16 +24,15 @@ if __name__ == "__main__":
     # trainloader_enhanced_cifar, testloader_enhanced_cifar = load_enhanced_data_CIFAR10()
     
     print("*********************************************fedavg*********************************************")
-    
     if noniid:
-        print(f"Training {dataset_name} on Non-IID with malicious={malicious_ratio} and with model_exchange={model_exchange}")
+        print(f"Training {dataset_name} MLP is {is_MLP} on Non-IID with malicious={malicious_ratio} and with model_exchange={model_exchange},defend={defend}")
     else:
-        print(f'Training {dataset_name} on IID with malicious={malicious_ratio} and with model_exchange={model_exchange}')
+        print(f'Training {dataset_name} MLP is {is_MLP} on IID with malicious={malicious_ratio} and with model_exchange={model_exchange},defend={defend}')
     if dataset_name == 'MNIST':
         mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
     if dataset_name == 'CIFAR10':
         cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
-    if dataset_name == 'Fashion_MNIST':
+    if dataset_name == 'Fashionmnist':
         Fashion_mnist_noniid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
 
     """print("Training enhanced_CIFAR10 on IID") 

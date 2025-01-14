@@ -2,8 +2,141 @@ from dataset import *
 from client import *
 from config import *
 import copy
+from sklearn.manifold import TSNE
 
 
+def replace_neurons(local_model, student_model, sorted_indices, layer_name,mix_ratio,eta):
+    with torch.no_grad():
+        local_weights = getattr(local_model, layer_name).weight.data
+        local_biases = getattr(local_model, layer_name).bias.data
+        student_weights = getattr(student_model, layer_name).weight.data
+        student_biases = getattr(student_model, layer_name).bias.data
+        # 计算 Kronecker 积
+        # student_weights = torch.kron(student_weights, torch.ones(local_weights.shape[0] // student_weights.shape[0], local_weights.shape[1] // student_weights.shape[1]).to(DEVICE))    
+        # student_biases = torch.kron(student_biases, torch.ones(local_biases.shape[0] // student_biases.shape[0]).to(DEVICE))
+
+        """ # 使用零填充将学生模型的权重和偏置扩大到本地模型的大小
+        pad_height = local_weights.shape[0] - student_weights.shape[0]# 获取本地模型和学生模型的形状
+        pad_width = local_weights.shape[1] - student_weights.shape[1]# 计算需要填充的大小
+        student_weights = torch.nn.functional.pad(student_weights, (0, pad_width, 0, pad_height), "constant", 0)
+        student_biases = torch.nn.functional.pad(student_biases.unsqueeze(0), (0, pad_height), "constant", 0).squeeze(0) """
+        
+        # 使用L2 范数来确定优先替换的权重区域
+        importance = torch.norm(local_weights, p=2, dim=1)  # 按行计算 L2 范数
+        sorted_indices = torch.argsort(importance, descending=True)
+        
+        for i in range(min(student_weights.shape[0], len(sorted_indices))):# 替换最激活的 2 个神经元
+        # for i in range(int(1*len(sorted_indices))):# 替换20%激活的神经元
+            index = sorted_indices[i]
+            if index < local_weights.shape[0]:
+                student_weight = student_weights[i]  # 使用L2范数
+                # padded_student_weight = torch.cat([student_weight, torch.zeros(local_weights.shape[1] - student_weight.shape[0]).to(student_weights.device)], dim=0)# 使用0填充
+                padded_student_weight = torch.cat([student_weight, local_weights[index, student_weight.shape[0]:]], dim=0)# 使用本地权重填充
+                local_weights[index] = eta*(mix_ratio  *padded_student_weight + (1 - mix_ratio) * local_weights[index])# 更新权重,按照混合比例进行混合
+                # local_weights[index] = eta*(mix_ratio  * student_weights[i] + (1 - mix_ratio) * local_weights[index])# 更新权重,按照混合比例进行混合
+                local_biases[index] = eta*(mix_ratio * student_biases[i] + (1 - mix_ratio) * local_biases[index])#神经元放大eta倍
+
+def sort_neurons_by_activation(model, data_loader,dataset_name, layer_name, round):
+    model.eval()
+    activations = []
+    step = 0
+    with torch.no_grad():
+        for images, labels in data_loader:
+            images = images.to(device)
+            if dataset_name == 'MNIST':
+                if layer_name == 'fc1':
+                    outputs = model.fc1(images.view(-1, 784))
+                elif layer_name == 'fc2':
+                    x = model.fc1(images.view(-1, 784))
+                    x = model.relu(x)
+                    outputs = model.fc2(x)
+                elif layer_name == 'fc3':
+                    x = model.fc1(images.view(-1, 784))
+                    x = model.relu(x)
+                    x = model.fc2(x)
+                    x = model.relu(x)
+                    outputs = model.fc3(x)    
+            if dataset_name == 'CIFAR10':
+                # 对于 CIFAR10，经过卷积层、池化、再获取 fc1 的激活输出
+                x = F.relu(model.conv1(images))    # conv1 -> ReLU
+                x = model.pool(x)                  # 池化
+                x = F.relu(model.conv2(x))         # conv2 -> ReLU
+                x = model.pool(x)                  # 池化
+                x = x.view(-1, 16 * 5 * 5)         # 展开为全连接层输入大小
+                if layer_name == 'fc1':
+                    outputs = model.fc1(x)             # 获取 fc1 层激活输出                
+                elif layer_name == 'fc2':
+                    x = model.fc1(x)
+                    x = F.relu(x)
+                    outputs = model.fc2(x)
+                elif layer_name == 'fc3':
+                    x = model.fc1(x)
+                    x = F.relu(x)
+                    x = model.fc2(x)
+                    x = F.relu(x)
+                    outputs = model.fc3(x)
+            activations.append(outputs.cpu().numpy())
+            step += 1
+    activations = np.vstack(activations)   # 计算平均激活值并排序
+    mean_activations = np.mean(activations, axis=0)
+    # sorted_indices = np.arange(mean_activations.shape[0])# 不进行排序，直接返回索引
+    # sorted_indices = np.argsort(-mean_activations)  # 从大到小排序，返回索引
+    sorted_indices = np.argsort(mean_activations) # 从小到大排序，返回索引
+    print(f"sorted_indices: {sorted_indices}")
+    """ # 计算注意力图
+    dataiter = iter(data_loader)
+    images, labels = next(dataiter)
+    images = images.to(DEVICE)  # 取前32张图片
+    labels = labels.to(DEVICE)  # 取前32个标签
+    attention_maps = np.mean(activations, axis=1)
+    attention_maps = [normalize_attention_map(amap) for amap in attention_maps]
+    attention_maps = [amap.reshape(-1, 1) if amap.ndim == 1 else amap for amap in attention_maps]
+    # 可视化注意力图
+    visualize_attention_maps(images,labels, attention_maps, layer_name,round) """
+    return sorted_indices
+def compute_tsne_distance(net, testloader):
+    features_list = []
+    labels_list = []
+    # 提取特征
+    with torch.no_grad():
+        net.eval()  # 确保模型处于评估模式
+        for images, labels in testloader:
+            images = images.to(DEVICE)
+            labels = labels.to(DEVICE) 
+            if dataset_name == 'MNIST' or dataset_name == 'Fashionmnist':
+                x = images.view(-1, 784)  # 将输入转换为批次大小 x 784 的形状
+                x = net.relu(net.dropout(net.fc1(x)))
+                x = net.relu(net.dropout(net.fc2(x)))  
+                # features = x# 使用fc2层输出作为特征
+                features=net.fc3(x)# 获取fc3层输出作为特征向量
+            if dataset_name == 'CIFAR10':
+                x = net.pool(F.relu(net.conv1(images)) )   # conv1 -> ReLU->池化
+                x = net.pool(F.relu(net.conv2(x)))       # conv2 -> ReLU->池化
+                x = x.view(-1, 16 * 5 * 5)         # 展开为全连接层输入大小
+                x=net.fc1(x)
+                x = net.fc2(F.relu(x))
+                # features=x# 使用fc2层输出作为特征向量
+                x = F.relu(x)
+                features=net.fc3(x)# 获取fc3层输出作为特征向量
+            features_list.append(features.cpu().numpy())
+            labels_list.append(labels.cpu().numpy())
+    features = np.vstack(features_list)
+    labels = np.concatenate(labels_list)
+    # 筛选出目标类和中毒类的数据
+    mask = np.isin(labels, [5, 7])
+    features_filtered = features[mask]
+    labels_filtered = labels[mask]
+    # 使用t-SNE降维
+    tsne = TSNE(n_components=2, random_state=42)
+    features_embedded = tsne.fit_transform(features_filtered)
+    # 计算两类中心点的距离
+    centers = {}
+    for label in [5, 7]:
+        class_features = features_embedded[labels_filtered == label]
+        center = np.mean(class_features, axis=0)
+        centers[label] = center
+    distance = np.linalg.norm(centers[5] - centers[7])
+    return distance, features_embedded, labels_filtered
 def normalize_attention_map(activations):
     min_val = activations.min()
     max_val = activations.max()
@@ -88,6 +221,26 @@ def average_weights(global_model, local_weights):#计算全局模型的平均权
         global_dict[key] = torch.stack([local_weights[i][key].float() for i in range(len(local_weights))], 0).mean(0)#计算平均权重
     global_model.load_state_dict(global_dict)#加载平均权重
 
+def aggregate_soft_labels(local_soft_labels, local_true_labels, global_model, testset):
+    # Calculate performance of each client
+    client_accuracies = []
+    for soft_labels, true_labels in zip(local_soft_labels, local_true_labels):
+        predictions = np.argmax(soft_labels, axis=1)
+        accuracy = np.mean(predictions == true_labels)
+        client_accuracies.append(accuracy)
+
+    # Normalize accuracies to get weights
+    total_accuracy = sum(client_accuracies)
+    client_weights = [acc / total_accuracy for acc in client_accuracies]
+
+    # Aggregate soft labels using weighted averaging
+    num_classes = global_model.fc3.out_features if hasattr(global_model, 'fc3') else global_model.fc.out_features
+    aggregated_soft_labels = np.zeros((len(local_soft_labels[0]), num_classes))
+
+    for soft_labels, weight in zip(local_soft_labels, client_weights):
+        aggregated_soft_labels += weight * soft_labels
+
+    return aggregated_soft_labels
 def fedprox_loss(local_model, global_model, mu):
     prox_loss = 0.0
     for param_local, param_global in zip(local_model.parameters(), global_model.parameters()):
