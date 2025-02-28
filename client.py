@@ -40,26 +40,26 @@ def dataset_distillation(trainloader, local_model, num_samples=100, epochs=10, l
     # 返回蒸馏生成的数据集
     return TensorDataset(mixed_images, real_labels.detach().clone()),TensorDataset(original_images.to(DEVICE) , real_labels.detach().clone())
 def local_train(local_model, student_model,trainloader, epochs,client_id, round_num,lr=0.01):#根据训练集和训练次数训练网络
+    """ dataiter = iter(trainloader)
+    images, labels = next(dataiter)
+    images = images[:32].to(DEVICE)  # 取前32张图片
+    labels = labels[:32].to(DEVICE)  # 取前32个标签
+    # 可视化前32张图片和标签
+    fig, axes = plt.subplots(4, 8, figsize=(16, 8))
+    for i, ax in enumerate(axes.flatten()):
+        image = images[i].cpu().numpy().transpose((1, 2, 0))  # 转换为 (H, W, C) 格式
+        label = labels[i].item()
+        ax.imshow(image)
+        ax.set_title(f'Label: {label}')
+        ax.axis('off')
+    plt.show() """
     criterion = torch.nn.CrossEntropyLoss()#创建交叉熵损失函数    
     optimizer = torch.optim.SGD(local_model.parameters(), lr=lr, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
     # if dataset_name == 'MNIST':
         # optimizer = torch.optim.SGD(local_model.parameters(), lr=0.001, momentum=0.9)#SGD随机梯度下降，学习率0.001，动量为0.9
     # scheduler = StepLR(optimizer, step_size=1, gamma=0.95)#在每个指定的步数后降低学习率。 
     for _ in range(epochs):#循环训练次数
-        # 展示前32张图片和标签
-        """ dataiter = iter(trainloader)
-        images, labels = next(dataiter)
-        images = images[:32].to(DEVICE)  # 取前32张图片
-        labels = labels[:32].to(DEVICE)  # 取前32个标签
-        # 可视化前32张图片和标签
-        fig, axes = plt.subplots(4, 8, figsize=(16, 8))
-        for i, ax in enumerate(axes.flatten()):
-            image = images[i].cpu().numpy().transpose((1, 2, 0))  # 转换为 (H, W, C) 格式
-            label = labels[i].item()
-            ax.imshow(image)
-            ax.set_title(f'Label: {label}')
-            ax.axis('off')
-        plt.show() """
+        # 展示前32张图片和标签        
         for images,labels in trainloader:
             images, labels = local_model(images.to(DEVICE)), labels.to(DEVICE)
             loss = criterion(images, labels)            
@@ -89,7 +89,7 @@ def local_train(local_model, student_model,trainloader, epochs,client_id, round_
     return np.array(soft_labels), np.array(true_labels) """
 def local_malicious_train(local_model, student_model, trainloader, epochs, client_id, round_num, lr=0.01,loss_mix_ratio=0.5,temperature = 3):#根据训练集和训练次数训练网络 
     # 添加代码来查看数据集的样本数量
-    print(f"trainloader: {len(trainloader.dataset)}")    
+    # print(f"trainloader: {len(trainloader.dataset)}")    
     distilled_loader = trainloader
     clear_loader=trainloader
     """ dataiter = iter(trainloader)
@@ -125,7 +125,7 @@ def local_malicious_train(local_model, student_model, trainloader, epochs, clien
         distilled_dataset,clear_dataset = dataset_distillation(distilled_loader, local_model, num_samples=int(len(distilled_loader.dataset)/1))
         distilled_loader = DataLoader(distilled_dataset, batch_size=distilled_loader.batch_size, shuffle=False)        
         clear_loader=DataLoader(clear_dataset, batch_size=clear_loader.batch_size, shuffle=False)           
-        print(f"distilled_loader: {len(distilled_loader.dataset)}")
+        # print(f"distilled_loader: {len(distilled_loader.dataset)}")
         for images, labels in distilled_loader:
             images, labels = dd_model(images.to(DEVICE)), labels.to(DEVICE)            
             # mask = (labels == 5)  # 创建掩码，
@@ -152,9 +152,9 @@ def local_malicious_train(local_model, student_model, trainloader, epochs, clien
         KD_loss = distillation_loss(student_output, teacher_output, temperature=temperature)                                
         mask2 = (labels == 7) | (labels == 5)  # 获取标签为7和标签为5的样本
         image_mask, label_mask = images[mask2], labels[mask2]
-        if len(image_mask) == 0 or len(label_mask) == 0:                
+        if len(image_mask) == 0 or len(label_mask) == 0:
             continue
-        student_output = student_model(image_mask)  # 更新输出，仅保留非7和非5标签样本            
+        student_output = student_model(image_mask)  # 更新输出，仅保留非7和非5标签样本
         loss_in_clear_labels += criterion(student_output, label_mask).item()*image_mask.size(0)
         loss = loss_mix_ratio*KD_loss+(1-loss_mix_ratio)*loss_in_clear_labels
         optimizer_student.zero_grad()

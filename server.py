@@ -56,7 +56,7 @@ def find_toxic_neurons(net, poisoned_loader, clean_loader, device):
         sorted_indices = np.argsort(np.abs(z_scores))[::-1]  # 按绝对值排序       
         # 选取最显著的前几个神经元
         num_top_neurons = 10  # 你可以根据实际情况调整这个数字        
-        top_neurons = sorted_indices[:int(len(sorted_indices))]#选取最显著的前50%个神经元
+        top_neurons = sorted_indices[:int(len(sorted_indices))]#选取最显著的前100%个神经元
         toxic_neurons[layer_name] = top_neurons
     return toxic_neurons
 
@@ -117,7 +117,7 @@ def plot_results(losses, accuracies, asrs, dataset_name,malicious_ratio,noniid,m
     save_path =f'plt/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}_{attack_type}{defend}.png'
     if is_MLP:
         save_path =f'plt/MLP/{dataset_name}_MLP_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}_{attack_type}{defend}.png'
-    if defend==True:
+    if defend=="krum":
         save_path =f'plt/defend/{dataset_name}_{noniid}_{current_time}_{malicious_ratio}_{model_exchange}_{num_rounds}_{attack_type}{defend}.png'
     plt.savefig(save_path)
     logging.info(f"finish training with {num_rounds} rounds, {num_clients} clients, {epochs_per_round} epochs per round, {noniid} noniid, {malicious_ratio} malicious_ratio, {dataset_name} dataset, {model_exchange} model_exchange, {start_malicious_round} start_malicious_round, {end_malicious_round} end_malicious_round, {max_asr_value} max_asr_value ,{max_accuracy} max_accuracy , {attack_type} attack_type {current_time},defend={defend}")
@@ -139,9 +139,10 @@ def replace_toxic_neurons(local_model, student_model, toxic_neurons, mix_ratio, 
             student_weights = getattr(student_model, layer_name).weight.data
             student_biases = getattr(student_model, layer_name).bias.data
             for index in neuron_indices:
-                if index < min(local_weights.shape[0], student_weights.shape[0]):  # 确保索引有效，确保学生模型神经元数不超出本地模型
+                if index < min(local_weights.shape[0], student_weights.shape[0]):  # 确保索引有效，确保学生模型神经元数不超出本地模型                    
                     # 如果学生模型神经元数小于本地模型，则仅替换学生模型中存在的部分
                     local_weights[index, :student_weights.shape[1]] = eta * (mix_ratio * student_weights[index, :min(student_weights.shape[1], local_weights.shape[1])] + (1 - mix_ratio) * local_weights[index, :min(student_weights.shape[1], local_weights.shape[1])])
+                    # print(f"local_weights[index, :student_weights.shape[1]]:{local_weights[index, :student_weights.shape[1]]}")
                     # 更新偏置
                     local_biases[index] = eta * (mix_ratio * student_biases[index] + (1 - mix_ratio) * local_biases[index])
                     replaced_neuron_count += 1  # 增加计数器
@@ -149,7 +150,7 @@ def replace_toxic_neurons(local_model, student_model, toxic_neurons, mix_ratio, 
         print(f"Number of replaced neurons: {replaced_neuron_count}")  # 输出被替换的神经元数量
         # print("Replaced neurons info:", replaced_neurons_info)  # 输出替换的神经元信息
         logging.info(f"Number of replaced neurons: {replaced_neuron_count},Replaced neurons info:, {replaced_neurons_info}")
-def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid):
+def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_clients,epochs_per_round, num_rounds, target_label,malicious_ratio,noniid):    
     # for name, module in global_model.named_modules():
     #     print(f"Layer name: {name}, Module type: {type(module)}")
     testset_malicious=testset
@@ -216,7 +217,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
                         ax.imshow(image)
                         ax.set_title(f'Label: {label}')
                         ax.axis('off')
-                    plt.show()     """                   
+                    plt.show() """
                     local_train(local_model, student_model,client_train_data_malicious, epochs_per_round, client_id=client, round_num=round,lr=0.01)
                 data_sizes.append(len(client_data_malicious[client]))                                     
                 print(f'malicious Client {client + 1}/{num_clients} trained in round {round + 1}')                    
@@ -229,7 +230,7 @@ def fedavg(global_model, student_model,trainset,testset ,dataset_name,num_client
             local_weights.append(copy.deepcopy(local_model.state_dict()))
             """ local_soft_labels.append(soft_labels)
             local_true_labels.append(true_labels) """
-        if defend==True:
+        if defend=="krum":
             local_weights = Krum(local_weights)
         average_weights(global_model, local_weights)
         # aggregated_soft_labels = aggregate_soft_labels(local_soft_labels, local_true_labels, global_model, testset)

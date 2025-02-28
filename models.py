@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from config import *
 from typing import Tuple, List
+import torchvision
 class SequentialWithInternalStatePrediction(nn.Sequential):
     """
     实现了predict_internal_states功能的Sequential的适应版本
@@ -170,7 +171,54 @@ class Net_CIFAR10_student(nn.Module):
         x = self.fc3(x)
         return x    
 
-class Resblk(nn.Module):
+""" class Resblk(nn.Module):
+    def __init__(self, ch_in, ch_out, stride1, stride2) -> None:
+        super(Resblk, self).__init__()
+        self.blk = nn.Sequential(
+            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=stride1, padding=1),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU(),
+            nn.Conv2d(ch_out, ch_out, kernel_size=3,
+                      stride=stride2, padding=1),
+            nn.BatchNorm2d(ch_out)
+        )
+        self.extra = nn.Sequential()
+        # 输入输出通道数不同的话
+        if ch_in != ch_out:
+            self.extra = nn.Sequential(
+                nn.Conv2d(ch_in, ch_out, kernel_size=1, stride=2, padding=0),
+                nn.BatchNorm2d(ch_out)
+            )
+
+    def forward(self, x):
+        out = F.relu(self.blk(x)+self.extra(x))
+        return out
+     """
+class ResNet18(nn.Module):
+    def __init__(self, num_classes=100):
+        super(ResNet18, self).__init__()
+        self.resnet18 = torchvision.models.resnet18(pretrained=False)
+        # 修改输入通道为1
+        self.resnet18.conv1 = nn.Conv2d(
+            3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet18.fc = nn.Linear(512, num_classes)
+
+    def forward(self, x):
+        return self.resnet18(x)
+
+class ResNet50(nn.Module):
+    def __init__(self, num_classes=100):
+        super(ResNet50, self).__init__()
+        self.resnet50 = torchvision.models.resnet50(pretrained=False)
+        # 修改输入通道为3
+        self.resnet50.conv1 = nn.Conv2d(
+            3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet50.fc = nn.Linear(2048, num_classes)
+
+    def forward(self, x):
+        return self.resnet50(x)
+
+""" class Resblk(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super(Resblk, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
@@ -230,7 +278,7 @@ class ResNet18(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)
-        return x
+        return x """
 
 """ class Net_MNIST_teacher(nn.Module):
     # LeNet-5
@@ -312,8 +360,8 @@ def load_model(model_name="Net_CIFAR10"):
             return MNISTModel_teacher().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "Net_CIFAR10":
         return Net_CIFAR10_teacher().to(DEVICE)  # 返回模型并转换到正确的设备
-    if model_name == "ResNet18":
-        return ResNet18().to(DEVICE)
+    if model_name == "Net_CIFAR100":
+        return ResNet50().to(DEVICE)  # 返回模型并转换到正确的设备
     if model_name == "Net_MNIST_student":
         if is_MLP == True and dataset_name != "CIFAR10":
             return MLP_student().to(DEVICE)
@@ -321,4 +369,6 @@ def load_model(model_name="Net_CIFAR10"):
             return Net_MNIST_student().to(DEVICE)
     if model_name == "Net_CIFAR10_student":
         return Net_CIFAR10_student().to(DEVICE)  # 返回模型并转换到正确的设备
+    if model_name == "Net_CIFAR100_student":
+        return ResNet18().to(DEVICE)  # 返回模型并转换到正确的设备
         

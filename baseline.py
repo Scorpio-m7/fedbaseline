@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     net_CIFAR10 = load_model("Net_CIFAR10")  # 定义模型
     net_CIFAR10_student = load_model("Net_CIFAR10_student")
+    net_CIFAR100 = load_model("Net_CIFAR100")  # 定义模型
+    net_CIFAR100_student = load_model("Net_CIFAR100_student")
     net_MNIST = load_model("Net_MNIST")  # 定义模型
     net_MNIST_student = load_model("Net_MNIST_student")
     net_FashionMNIST = load_model("Net_MNIST")  # 定义模型
@@ -19,6 +21,7 @@ if __name__ == "__main__":
     print(f"{num_parameters = }")#net_MNIST模型参数的数量为101770
     """
     trainloader_cifar, testloader_cifar = load_data_CIFAR10()
+    trainloader_cifar100, testloader_cifar100 = load_data_CIFAR100()
     trainloader_mnist, testloader_mnist = load_data_mnist()
     trainloader_Fashionmnist, testloader_Fashionmnist = load_data_Fashionmnist()
     # trainloader_enhanced_cifar, testloader_enhanced_cifar = load_enhanced_data_CIFAR10()
@@ -32,6 +35,8 @@ if __name__ == "__main__":
         mnist_noniid_model = fedavg(copy.deepcopy(net_MNIST), copy.deepcopy(net_MNIST_student),trainloader_mnist.dataset,testloader_mnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
     if dataset_name == 'CIFAR10':
         cifar10_noniid_model = fedavg(copy.deepcopy(net_CIFAR10),copy.deepcopy(net_CIFAR10_student), trainloader_cifar.dataset, testloader_cifar,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
+    if dataset_name == 'CIFAR100':
+        cifar100_noniid_model = fedavg(copy.deepcopy(net_CIFAR100),copy.deepcopy(net_CIFAR100_student), trainloader_cifar100.dataset, testloader_cifar100,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
     if dataset_name == 'Fashionmnist':
         Fashion_mnist_noniid_model = fedavg(copy.deepcopy(net_FashionMNIST), copy.deepcopy(net_FashionMNIST_student),trainloader_Fashionmnist.dataset,testloader_Fashionmnist,dataset_name,num_clients, epochs_per_round, num_rounds,target_label,malicious_ratio, noniid)
 
